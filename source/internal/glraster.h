@@ -27,49 +27,55 @@
 
 /**********************************************************************************************/
 
+#include "glmain.h"
+
+/**********************************************************************************************/
+
 // Vertex structure used by rasterizers
 
 typedef struct {
-  GLdouble    x;  // X coordinate
-  GLdouble    y;  // Y coordinate
-  GLdouble    z;  // Z coordinate
-  GLdouble    r;  // Red color component
-  GLdouble    g;  // Green color component
-  GLdouble    b;  // Blue color component
-  GLdouble    a;  // Alpha component
-  GLdouble    u;  // X texture coordinate
-  GLdouble    v;  // Y texture coordinate
-  GLdouble    w;  // 1/z
+    GLdouble x; // X coordinate
+    GLdouble y; // Y coordinate
+    GLdouble z; // Z coordinate
+    GLdouble r; // Red color component
+    GLdouble g; // Green color component
+    GLdouble b; // Blue color component
+    GLdouble a; // Alpha component
+    GLdouble u; // X texture coordinate
+    GLdouble v; // Y texture coordinate
+    GLdouble w; // 1/z
 } GLrastervertex;
 
 /**********************************************************************************************/
 
-extern GLI32  GlClip[2][2];
+extern GLI32 GlClip[2][2];
 
 /**********************************************************************************************/
 
-void glRasterTriangle ();
+void glRasterTriangle();
 
-void          glPolygonToClipping        (LPGLPOLYGON, GLdouble*);
-void          glPolygonToViewport        (LPGLPOLYGON, GLI32*);
-void          glIlluminatePolygon        (LPGLPOLYGON, LPGLRENDERBLOCK);
+void glPolygonToClipping(LPGLPOLYGON, GLdouble *);
+void glPolygonToViewport(LPGLPOLYGON, GLI32 *);
+void glLightPolygon(LPGLPOLYGON, LPGLRENDERBLOCK);
 
-GLboolean     glRasterSetContextAndBlock (LPGLRENDERCONTEXT, LPGLRENDERBLOCK);
-void          glRasterizePolygon         (LPGLRENDERCONTEXT, LPGLRENDERBLOCK, LPGLPOLYGON);
+GLboolean glRasterSetContextAndBlock(LPGLRENDERCONTEXT, LPGLRENDERBLOCK);
+void glRasterizePolygon(LPGLRENDERCONTEXT, LPGLRENDERBLOCK, LPGLPOLYGON);
 
-void          glRasterizeBlock           (LPGLRENDERCONTEXT Context, LPGLRENDERBLOCK Block);
-GLboolean     glRasterSetContext         (LPGLRENDERCONTEXT Context);
-
-/**********************************************************************************************/
-
-EXPORT GLboolean APIENTRY glSetupSingleClipPlane (LPGLCLIPPLANE, GLdouble*, GLdouble*);
-
-EXPORT GLboolean APIENTRY glClipPolygonToSinglePlane
-(LPGLCLIPPLANE, GLI32*, LPGLVERTEX, GLI32*, LPGLVERTEX);
-
-EXPORT GLboolean APIENTRY glClipPolygon
-(LPGLCLIPPLANE, GLI32, GLI32*, LPGLVERTEX, GLI32*, LPGLVERTEX);
+void glRasterizeBlock(LPGLRENDERCONTEXT Context, LPGLRENDERBLOCK Block);
+GLboolean glRasterSetContext(LPGLRENDERCONTEXT Context);
 
 /**********************************************************************************************/
 
-#endif  // GLRASTER_H_INCLUDED
+EXPORT GLboolean APIENTRY glSetupSingleClipPlane(LPGLCLIPPLANE, GLdouble *,
+                                                 GLdouble *);
+
+EXPORT GLboolean APIENTRY glClipPolygonToSinglePlane(LPGLCLIPPLANE, GLI32 *,
+                                                     LPGLVERTEX, GLI32 *,
+                                                     LPGLVERTEX);
+
+EXPORT GLboolean APIENTRY glClipPolygon(LPGLCLIPPLANE, GLI32, GLI32 *,
+                                        LPGLVERTEX, GLI32 *, LPGLVERTEX);
+
+/**********************************************************************************************/
+
+#endif // GLRASTER_H_INCLUDED
