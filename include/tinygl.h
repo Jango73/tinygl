@@ -1108,9 +1108,9 @@ typedef void(APIENTRY *PFNGLGETPOINTERVEXTPROC)(GLenum pname, GLvoid **params);
 
 /* WIN_swap_hint */
 
-typedef EXPORT void(APIENTRY *PFNGLADDSWAPHINTRECTWINPROC)(GLint x, GLint y,
-                                                           GLsizei width,
-                                                           GLsizei height);
+typedef void(APIENTRY *PFNGLADDSWAPHINTRECTWINPROC)(GLint x, GLint y,
+                                                    GLsizei width,
+                                                    GLsizei height);
 
 /**********************************************************************************************/
 

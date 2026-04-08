@@ -57,13 +57,8 @@
 
 /*****************************************************************************************************/
 
-typedef unsigned char GLU8;
-typedef unsigned short GLU16;
-typedef unsigned int GLU32;
-
-typedef signed char GLI8;
-typedef signed short GLI16;
-typedef int GLI32;
+typedef GLfloat GLMATRIX4F[4][4];
+typedef GLdouble GLMATRIX4D[4][4];
 
 /*****************************************************************************************************/
 
@@ -155,10 +150,10 @@ typedef struct tag_GLLIGHT {
 
 typedef struct tag_GLXFORMDATA {
     GLenum MatrixMode;
-    GLdouble NMatrix[3][4][4];
-    GLdouble IMatrix[3][4][4];
-    GLdouble NMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX][4][4];
-    GLdouble IMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX][4][4];
+    GLMATRIX4D NMatrix[3];
+    GLMATRIX4D IMatrix[3];
+    GLMATRIX4D NMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX];
+    GLMATRIX4D IMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX];
     GLI32 MatrixStackDepth[3];
     GLCLIPPLANE Plane[6];
 } GLXFORMDATA, *LPGLXFORMDATA;

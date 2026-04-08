@@ -50,12 +50,9 @@ GLenum GlNumVertProcessed;
 
 // Variables local to this module
 
-static char szTemp[256];
 static GLenum GlCurrentErrorCode;
 static TGL_ERROR GlLastError;
 static GLboolean GlLibraryInitialized;
-
-static void glDestroyAllContexts(void);
 
 /**********************************************************************************************/
 
@@ -87,9 +84,60 @@ static GLI32 glGetMatrixStackMaxDepth(GLenum MatrixMode) {
  * @param Destination The destination matrix.
  * @param Source The source matrix.
  */
-static void glCopyMatrix4d(GLdouble Destination[4][4],
-                           const GLdouble Source[4][4]) {
+static void glCopyMatrix4d(GLdouble Destination[4][4], GLdouble Source[4][4]) {
     memcpy(Destination, Source, sizeof(GLdouble) * 16);
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Copy a linear double matrix into a 4x4 matrix.
+ * @param Destination The destination matrix.
+ * @param Source The source values in linear order.
+ */
+static void glCopyLinearToMatrix4d(GLdouble Destination[4][4],
+                                   const GLdouble *Source) {
+    memcpy(Destination, Source, sizeof(GLdouble) * 16);
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Copy a linear float matrix into a 4x4 double matrix.
+ * @param Destination The destination matrix.
+ * @param Source The source values in linear order.
+ */
+static void glCopyLinearFloatToMatrix4d(GLdouble Destination[4][4],
+                                        const GLfloat *Source) {
+    GLI32 Index;
+    GLdouble *DestinationValue;
+
+    DestinationValue = &(Destination[0][0]);
+
+    for (Index = 0; Index < 16; Index++)
+        DestinationValue[Index] = Source[Index];
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Return the active normal matrix.
+ * @param Context The render context.
+ * @return A pointer to the active matrix.
+ */
+static GLMATRIX4D *glGetContextCurrentNMatrix(LPGLRENDERCONTEXT Context) {
+    return &(Context->Block.XForm.NMatrix[Context->Block.XForm.MatrixMode]);
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Return the active inverse matrix.
+ * @param Context The render context.
+ * @return A pointer to the active inverse matrix.
+ */
+static GLMATRIX4D *glGetContextCurrentIMatrix(LPGLRENDERCONTEXT Context) {
+    return &(Context->Block.XForm.IMatrix[Context->Block.XForm.MatrixMode]);
 }
 
 /**********************************************************************************************/
@@ -272,24 +320,6 @@ LPGLPOLYGON glAllocatePolygon(GLenum numvert) {
 
 /**********************************************************************************************/
 
-static void glMatrixGLtoMatrix4d(const GLdouble *m1, GLdouble *m2) {
-    long c, d;
-    for (d = 0; d < 4; d++)
-        for (c = 0; c < 4; c++)
-            m2[d * 4 + c] = m1[c * 4 + d];
-}
-
-/**********************************************************************************************/
-
-static void glMatrix4dtoMatrixGL(const GLdouble *m1, GLdouble *m2) {
-    long c, d;
-    for (d = 0; d < 4; d++)
-        for (c = 0; c < 4; c++)
-            m2[d * 4 + c] = m1[c * 4 + d];
-}
-
-/**********************************************************************************************/
-
 void glComputeFrustum(LPGLRENDERCONTEXT Context, LPGLRENDERBLOCK Block) {
     GLdouble Pos[4];
     GLdouble Nor[4];
@@ -446,10 +476,6 @@ static GLboolean glInitLibrary(void) {
 
     return TRUE;
 }
-
-/**********************************************************************************************/
-
-static void glDeInitLibrary() { glDestroyAllContexts(); }
 
 /**********************************************************************************************/
 
@@ -683,14 +709,14 @@ static void glInitRenderContext(LPGLRENDERCONTEXT rc) {
     rc->Block.XForm.MatrixMode = GL_MATRIX_MODELVIEW;
 
     for (c = 0; c < 3; c++) {
-        glMatrix4dIdentity(&(rc->Block.XForm.NMatrix[c][0][0]));
-        glMatrix4dInverse(&(rc->Block.XForm.IMatrix[c][0][0]),
-                          &(rc->Block.XForm.NMatrix[c][0][0]));
+        glMatrix4dIdentity(rc->Block.XForm.NMatrix[c]);
+        glMatrix4dInverse(rc->Block.XForm.IMatrix[c],
+                          rc->Block.XForm.NMatrix[c]);
         rc->Block.XForm.MatrixStackDepth[c] = 1;
 
         for (d = 0; d < GL_MODELVIEW_MATRIX_STACK_MAX; d++) {
-            glMatrix4dIdentity(&(rc->Block.XForm.NMatrixStack[c][d][0][0]));
-            glMatrix4dIdentity(&(rc->Block.XForm.IMatrixStack[c][d][0][0]));
+            glMatrix4dIdentity(rc->Block.XForm.NMatrixStack[c][d]);
+            glMatrix4dIdentity(rc->Block.XForm.IMatrixStack[c][d]);
         }
 
         glCopyMatrix4d(rc->Block.XForm.NMatrixStack[c][0],
@@ -797,23 +823,6 @@ static void glDestroySingleContext(LPGLRENDERCONTEXT Context) {
 
 /**********************************************************************************************/
 
-static void glDestroyAllContexts() {
-    long c;
-
-    for (c = 0; c < GL_MAX_CONTEXT; c++) {
-        if (GlRenderContext[c] != NULL) {
-            glDestroySingleContext(GlRenderContext[c]);
-            GlRenderContext[c] = NULL;
-            GlNumContext--;
-        }
-    }
-
-    if (GlNumContext != 0)
-        glSetErrorCode(GL_INVALID_OPERATION);
-}
-
-/**********************************************************************************************/
-
 static void glEnableDisable(GLenum cap, GLboolean val) {
     LPGLRENDERCONTEXT rc = GlCurrentContext;
 
@@ -915,22 +924,7 @@ static void glEnableDisable(GLenum cap, GLboolean val) {
 
 /**********************************************************************************************/
 
-GLdouble *glGetContextCurrentNMatrix(LPGLRENDERCONTEXT rc) {
-    return (GLdouble *)&(rc->Block.XForm.NMatrix[rc->Block.XForm.MatrixMode]);
-}
-
-/**********************************************************************************************/
-
-GLdouble *glGetContextCurrentIMatrix(LPGLRENDERCONTEXT rc) {
-    return (GLdouble *)&(rc->Block.XForm.IMatrix[rc->Block.XForm.MatrixMode]);
-}
-
-/**********************************************************************************************/
-
 void glAddInputPolygonToRenderList(LPGLRENDERCONTEXT rc) {
-    LPGLRENDERBLOCK Block;
-    LPGLPOLYGON Poly;
-
     if (rc->IPolygon.NumVertex == 0)
         return;
 
@@ -1000,8 +994,7 @@ void glCheckInputPolygon(LPGLRENDERCONTEXT rc) {
 /**********************************************************************************************/
 
 void glAddInputVertexToInputPolygon(LPGLRENDERCONTEXT rc) {
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
     GLenum nv = rc->IPolygon.NumVertex;
 
     if (nv < GL_MAX_POLY_VERTEX) {
@@ -1009,16 +1002,15 @@ void glAddInputVertexToInputPolygon(LPGLRENDERCONTEXT rc) {
         memcpy(&(rc->IPolygon.Vertex[nv]), &(rc->IVertex), sizeof(GLVERTEX));
 
         // Get the current modelview matrix
-        CNMatrix = (GLdouble *)rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW];
-        CIMatrix = (GLdouble *)rc->Block.XForm.IMatrix[GL_MATRIX_MODELVIEW];
+        CNMatrix = &(rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW]);
 
         // Transform the vertex with the modelview matrix
         glMatrix4dTransVector4d(rc->IPolygon.Vertex[nv].Eye,
-                                rc->IPolygon.Vertex[nv].World, CNMatrix);
+                                rc->IPolygon.Vertex[nv].World, *CNMatrix);
 
         // Transform the vertex normal with the modelview matrix
         glMatrix4dTransVector4d(rc->IPolygon.Vertex[nv].Normal,
-                                rc->IPolygon.Vertex[nv].Normal, CNMatrix);
+                                rc->IPolygon.Vertex[nv].Normal, *CNMatrix);
 
         rc->IPolygon.NumVertex++;
     }
@@ -1358,8 +1350,6 @@ EXPORT void *APIENTRY tinyglGetProcAddress(const char *Name) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glBegin(GLenum mode) {
-    LPGLRENDERBLOCK lpBlock;
-
     if (!glCheckState())
         return;
 
@@ -1462,7 +1452,7 @@ EXPORT void APIENTRY glClear(GLbitfield mask) {
     GLU32 ClearColor;
     GLfloat *DepthBuffer;
     GLfloat ClearDepth;
-    GLint c;
+    GLU32 c;
 
     if (!glCheckState())
         return;
@@ -1521,7 +1511,12 @@ EXPORT void APIENTRY glClear(GLbitfield mask) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glClearAccum(GLfloat red, GLfloat green, GLfloat blue,
-                                  GLfloat alpha) {}
+                                  GLfloat alpha) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+    GL_UNUSED(alpha);
+}
 
 /**********************************************************************************************/
 
@@ -1552,23 +1547,30 @@ EXPORT void APIENTRY glClearDepth(GLclampd depth) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glClearIndex(GLfloat c) {}
+EXPORT void APIENTRY glClearIndex(GLfloat c) { GL_UNUSED(c); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glClearStencil(GLint s) {}
+EXPORT void APIENTRY glClearStencil(GLint s) { GL_UNUSED(s); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glClipPlane(GLenum plane, const GLdouble *equation) {}
+EXPORT void APIENTRY glClipPlane(GLenum plane, const GLdouble *equation) {
+    GL_UNUSED(plane);
+    GL_UNUSED(equation);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3b(GLbyte red, GLbyte green, GLbyte blue) {}
+EXPORT void APIENTRY glColor3b(GLbyte red, GLbyte green, GLbyte blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3bv(const GLbyte *v) {}
+EXPORT void APIENTRY glColor3bv(const GLbyte *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -1583,7 +1585,7 @@ EXPORT void APIENTRY glColor3d(GLdouble red, GLdouble green, GLdouble blue) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3dv(const GLdouble *v) {}
+EXPORT void APIENTRY glColor3dv(const GLdouble *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -1598,47 +1600,67 @@ EXPORT void APIENTRY glColor3f(GLfloat red, GLfloat green, GLfloat blue) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3fv(const GLfloat *v) {}
+EXPORT void APIENTRY glColor3fv(const GLfloat *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3i(GLint red, GLint green, GLint blue) {}
+EXPORT void APIENTRY glColor3i(GLint red, GLint green, GLint blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3iv(const GLint *v) {}
+EXPORT void APIENTRY glColor3iv(const GLint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3s(GLshort red, GLshort green, GLshort blue) {}
+EXPORT void APIENTRY glColor3s(GLshort red, GLshort green, GLshort blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3sv(const GLshort *v) {}
+EXPORT void APIENTRY glColor3sv(const GLshort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3ub(GLubyte red, GLubyte green, GLubyte blue) {}
+EXPORT void APIENTRY glColor3ub(GLubyte red, GLubyte green, GLubyte blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3ubv(const GLubyte *v) {}
+EXPORT void APIENTRY glColor3ubv(const GLubyte *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3ui(GLuint red, GLuint green, GLuint blue) {}
+EXPORT void APIENTRY glColor3ui(GLuint red, GLuint green, GLuint blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3uiv(const GLuint *v) {}
+EXPORT void APIENTRY glColor3uiv(const GLuint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3us(GLushort red, GLushort green, GLushort blue) {}
+EXPORT void APIENTRY glColor3us(GLushort red, GLushort green, GLushort blue) {
+    GL_UNUSED(red);
+    GL_UNUSED(green);
+    GL_UNUSED(blue);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glColor3usv(const GLushort *v) {}
+EXPORT void APIENTRY glColor3usv(const GLushort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -1650,7 +1672,7 @@ EXPORT void APIENTRY glDisable(GLenum cap) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glDrawBuffer(GLenum mode) {}
+EXPORT void APIENTRY glDrawBuffer(GLenum mode) { GL_UNUSED(mode); }
 
 /**********************************************************************************************/
 
@@ -1663,8 +1685,6 @@ EXPORT void APIENTRY glEnable(GLenum cap) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glEnd() {
-    LPGLRENDERBLOCK Block;
-
     if (GlInputPrimitive == FALSE) {
         glSetErrorCode(GL_INVALID_OPERATION);
         return;
@@ -1694,10 +1714,6 @@ EXPORT void APIENTRY glEnd() {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glFlush() {
-    LPGLLIST List;
-    LPGLRENDERBLOCK Block;
-    GLenum Count = 0;
-
     if (!glCheckState())
         return;
 
@@ -1720,8 +1736,8 @@ EXPORT void APIENTRY glFlush() {
 EXPORT void APIENTRY glFrustum(GLdouble left, GLdouble right, GLdouble bottom,
                                GLdouble top, GLdouble znear, GLdouble zfar) {
     GLdouble tmp[4][4];
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState())
         return;
@@ -1756,8 +1772,8 @@ EXPORT void APIENTRY glFrustum(GLdouble left, GLdouble right, GLdouble bottom,
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glMatrix4dConcat(*CNMatrix, *CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -1768,6 +1784,9 @@ EXPORT void APIENTRY glFrustum(GLdouble left, GLdouble right, GLdouble bottom,
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glGetBooleanv(GLenum pname, GLboolean *params) {
+    GL_UNUSED(pname);
+    GL_UNUSED(params);
+
     if (!glCheckState())
         return;
 }
@@ -1775,6 +1794,9 @@ EXPORT void APIENTRY glGetBooleanv(GLenum pname, GLboolean *params) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glGetClipPlane(GLenum plane, GLdouble *equation) {
+    GL_UNUSED(plane);
+    GL_UNUSED(equation);
+
     if (!glCheckState())
         return;
 }
@@ -1783,8 +1805,6 @@ EXPORT void APIENTRY glGetClipPlane(GLenum plane, GLdouble *equation) {
 
 EXPORT void APIENTRY glGetDoublev(GLenum pname, GLdouble *params) {
     LPGLRENDERCONTEXT rc;
-    GLdouble *pm1;
-    GLdouble *pm2;
     GLint c;
 
     if (!glCheckState())
@@ -1805,9 +1825,8 @@ EXPORT void APIENTRY glGetDoublev(GLenum pname, GLdouble *params) {
 
     switch (pname) {
     case GL_MODELVIEW_MATRIX: {
-        pm1 = (GLdouble *)&(rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW]);
         for (c = 0; c < 16; c++)
-            params[c] = pm1[c];
+            params[c] = rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW][0][c];
         return;
     }
 
@@ -1817,9 +1836,8 @@ EXPORT void APIENTRY glGetDoublev(GLenum pname, GLdouble *params) {
     }
 
     case GL_PROJECTION_MATRIX: {
-        pm1 = (GLdouble *)&(rc->Block.XForm.NMatrix[GL_MATRIX_PROJECTION]);
         for (c = 0; c < 16; c++)
-            params[c] = pm1[c];
+            params[c] = rc->Block.XForm.NMatrix[GL_MATRIX_PROJECTION][0][c];
         return;
     }
     }
@@ -1848,8 +1866,6 @@ EXPORT GLenum APIENTRY glGetError() {
 
 EXPORT void APIENTRY glGetFloatv(GLenum pname, GLfloat *params) {
     LPGLRENDERCONTEXT rc;
-    GLdouble *pm1;
-    GLdouble *pm2;
     GLint c;
 
     if (!glCheckState())
@@ -1870,9 +1886,9 @@ EXPORT void APIENTRY glGetFloatv(GLenum pname, GLfloat *params) {
 
     switch (pname) {
     case GL_MODELVIEW_MATRIX: {
-        pm1 = (GLdouble *)&(rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW]);
         for (c = 0; c < 16; c++)
-            params[c] = (GLfloat)pm1[c];
+            params[c] =
+                (GLfloat)rc->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW][0][c];
         return;
     }
 
@@ -1882,9 +1898,9 @@ EXPORT void APIENTRY glGetFloatv(GLenum pname, GLfloat *params) {
     }
 
     case GL_PROJECTION_MATRIX: {
-        pm1 = (GLdouble *)&(rc->Block.XForm.NMatrix[GL_MATRIX_PROJECTION]);
         for (c = 0; c < 16; c++)
-            params[c] = (GLfloat)pm1[c];
+            params[c] =
+                (GLfloat)rc->Block.XForm.NMatrix[GL_MATRIX_PROJECTION][0][c];
         return;
     }
 
@@ -1998,7 +2014,7 @@ EXPORT void APIENTRY glLightf(GLenum light, GLenum pname, GLfloat param) {
 
 EXPORT void APIENTRY glLightfv(GLenum light, GLenum pname,
                                const GLfloat *params) {
-    GLdouble *mat;
+    GLMATRIX4D *mat;
     GLdouble *vec;
 
     if (!glCheckState() || params == NULL)
@@ -2040,10 +2056,9 @@ EXPORT void APIENTRY glLightfv(GLenum light, GLenum pname,
         GlCurrentContext->Block.Light[light].Position[W] = (GLdouble)params[3];
 
         vec = (GLdouble *)&(GlCurrentContext->Block.Light[light].Position);
-        mat = (GLdouble *)&(
-            GlCurrentContext->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW]);
+        mat = &(GlCurrentContext->Block.XForm.NMatrix[GL_MATRIX_MODELVIEW]);
 
-        glMatrix4dTransVector4d(vec, vec, mat);
+        glMatrix4dTransVector4d(vec, vec, *mat);
     } break;
 
     default:
@@ -2054,24 +2069,37 @@ EXPORT void APIENTRY glLightfv(GLenum light, GLenum pname,
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glLighti(GLenum light, GLenum pname, GLint param) {}
+EXPORT void APIENTRY glLighti(GLenum light, GLenum pname, GLint param) {
+    GL_UNUSED(light);
+    GL_UNUSED(pname);
+    GL_UNUSED(param);
+}
 
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glLightiv(GLenum light, GLenum pname,
-                               const GLint *params) {}
+                               const GLint *params) {
+    GL_UNUSED(light);
+    GL_UNUSED(pname);
+    GL_UNUSED(params);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glLineStipple(GLint factor, GLushort pattern) {}
+EXPORT void APIENTRY glLineStipple(GLint factor, GLushort pattern) {
+    GL_UNUSED(factor);
+    GL_UNUSED(pattern);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glLineWidth(GLfloat width) {}
+EXPORT void APIENTRY glLineWidth(GLfloat width) { GL_UNUSED(width); }
 
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glListBase(GLuint base) {
+    GL_UNUSED(base);
+
     if (!glCheckState())
         return;
 }
@@ -2079,17 +2107,17 @@ EXPORT void APIENTRY glListBase(GLuint base) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glLoadIdentity() {
-    GLdouble *mat1;
-    GLdouble *mat2;
+    GLMATRIX4D *mat1;
+    GLMATRIX4D *mat2;
 
     if (!glCheckState())
         return;
 
-    mat1 = (GLdouble *)glGetContextCurrentNMatrix(GlCurrentContext);
-    mat2 = (GLdouble *)glGetContextCurrentIMatrix(GlCurrentContext);
+    mat1 = glGetContextCurrentNMatrix(GlCurrentContext);
+    mat2 = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dIdentity(mat1);
-    glMatrix4dInverse(mat2, mat1);
+    glMatrix4dIdentity(*mat1);
+    glMatrix4dInverse(*mat2, *mat1);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2100,9 +2128,8 @@ EXPORT void APIENTRY glLoadIdentity() {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glLoadMatrixd(const GLdouble *Matrix) {
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
-    GLint c;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState() || Matrix == NULL)
         return;
@@ -2110,10 +2137,8 @@ EXPORT void APIENTRY glLoadMatrixd(const GLdouble *Matrix) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    for (c = 0; c < 16; c++)
-        CNMatrix[c] = Matrix[c];
-
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glCopyLinearToMatrix4d(*CNMatrix, Matrix);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2124,9 +2149,8 @@ EXPORT void APIENTRY glLoadMatrixd(const GLdouble *Matrix) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glLoadMatrixf(const GLfloat *Matrix) {
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
-    GLint c;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState() || Matrix == NULL)
         return;
@@ -2134,10 +2158,8 @@ EXPORT void APIENTRY glLoadMatrixf(const GLfloat *Matrix) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    for (c = 0; c < 16; c++)
-        CNMatrix[c] = Matrix[c];
-
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glCopyLinearFloatToMatrix4d(*CNMatrix, Matrix);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2147,7 +2169,11 @@ EXPORT void APIENTRY glLoadMatrixf(const GLfloat *Matrix) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glMaterialf(GLenum face, GLenum pname, GLfloat param) {}
+EXPORT void APIENTRY glMaterialf(GLenum face, GLenum pname, GLfloat param) {
+    GL_UNUSED(face);
+    GL_UNUSED(pname);
+    GL_UNUSED(param);
+}
 
 /**********************************************************************************************/
 
@@ -2236,12 +2262,20 @@ EXPORT void APIENTRY glMaterialfv(GLenum face, GLenum pname,
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glMateriali(GLenum face, GLenum pname, GLint param) {}
+EXPORT void APIENTRY glMateriali(GLenum face, GLenum pname, GLint param) {
+    GL_UNUSED(face);
+    GL_UNUSED(pname);
+    GL_UNUSED(param);
+}
 
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glMaterialiv(GLenum face, GLenum pname,
-                                  const GLint *params) {}
+                                  const GLint *params) {
+    GL_UNUSED(face);
+    GL_UNUSED(pname);
+    GL_UNUSED(params);
+}
 
 /**********************************************************************************************/
 
@@ -2271,10 +2305,9 @@ EXPORT void APIENTRY glMatrixMode(GLenum mode) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glMultMatrixd(const GLdouble *Matrix) {
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
-    GLdouble Temp[16];
-    GLint c;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
+    GLMATRIX4D Temp;
 
     if (!glCheckState() || Matrix == NULL)
         return;
@@ -2282,11 +2315,9 @@ EXPORT void APIENTRY glMultMatrixd(const GLdouble *Matrix) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    for (c = 0; c < 16; c++)
-        Temp[c] = Matrix[c];
-
-    glMatrix4dTimes(CNMatrix, Temp, CNMatrix);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glCopyLinearToMatrix4d(Temp, Matrix);
+    glMatrix4dTimes(*CNMatrix, Temp, *CNMatrix);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2297,10 +2328,9 @@ EXPORT void APIENTRY glMultMatrixd(const GLdouble *Matrix) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glMultMatrixf(const GLfloat *Matrix) {
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
-    GLdouble Temp[16];
-    GLint c;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
+    GLMATRIX4D Temp;
 
     if (!glCheckState() || Matrix == NULL)
         return;
@@ -2308,11 +2338,9 @@ EXPORT void APIENTRY glMultMatrixf(const GLfloat *Matrix) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    for (c = 0; c < 16; c++)
-        Temp[c] = Matrix[c];
-
-    glMatrix4dTimes(CNMatrix, Temp, CNMatrix);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glCopyLinearFloatToMatrix4d(Temp, Matrix);
+    glMatrix4dTimes(*CNMatrix, Temp, *CNMatrix);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2322,11 +2350,15 @@ EXPORT void APIENTRY glMultMatrixf(const GLfloat *Matrix) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz) {}
+EXPORT void APIENTRY glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz) {
+    GL_UNUSED(nx);
+    GL_UNUSED(ny);
+    GL_UNUSED(nz);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3bv(const GLbyte *v) {}
+EXPORT void APIENTRY glNormal3bv(const GLbyte *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2341,7 +2373,7 @@ EXPORT void APIENTRY glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3dv(const GLdouble *v) {}
+EXPORT void APIENTRY glNormal3dv(const GLdouble *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2356,15 +2388,19 @@ EXPORT void APIENTRY glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3fv(const GLfloat *v) {}
+EXPORT void APIENTRY glNormal3fv(const GLfloat *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3i(GLint nx, GLint ny, GLint nz) {}
+EXPORT void APIENTRY glNormal3i(GLint nx, GLint ny, GLint nz) {
+    GL_UNUSED(nx);
+    GL_UNUSED(ny);
+    GL_UNUSED(nz);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3iv(const GLint *v) {}
+EXPORT void APIENTRY glNormal3iv(const GLint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2379,15 +2415,15 @@ EXPORT void APIENTRY glNormal3s(GLshort nx, GLshort ny, GLshort nz) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glNormal3sv(const GLshort *v) {}
+EXPORT void APIENTRY glNormal3sv(const GLshort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
                              GLdouble top, GLdouble znear, GLdouble zfar) {
     GLdouble tmp[4][4];
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState())
         return;
@@ -2422,8 +2458,8 @@ EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glMatrix4dConcat(*CNMatrix, *CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2433,7 +2469,10 @@ EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
 
 /**********************************************************************************************/
 
-EXPORT GLint APIENTRY glRenderMode(GLenum mode) { return 0; }
+EXPORT GLint APIENTRY glRenderMode(GLenum mode) {
+    GL_UNUSED(mode);
+    return 0;
+}
 
 /**********************************************************************************************/
 
@@ -2503,8 +2542,8 @@ EXPORT void APIENTRY glRotated(GLdouble angle, GLdouble x, GLdouble y,
     GLdouble Pnt1[3];
     GLdouble Pnt2[3];
     GLdouble tmp[4][4];
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
     GLdouble RadianAngle;
 
     if (!glCheckState())
@@ -2524,8 +2563,8 @@ EXPORT void APIENTRY glRotated(GLdouble angle, GLdouble x, GLdouble y,
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glMatrix4dConcat(*CNMatrix, *CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2544,8 +2583,8 @@ EXPORT void APIENTRY glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z) {
 EXPORT void APIENTRY glScaled(GLdouble x, GLdouble y, GLdouble z) {
     GLdouble scl[3];
     GLdouble tmp[4][4];
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState())
         return;
@@ -2558,8 +2597,8 @@ EXPORT void APIENTRY glScaled(GLdouble x, GLdouble y, GLdouble z) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glMatrix4dConcat(*CNMatrix, *CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2576,35 +2615,51 @@ EXPORT void APIENTRY glScalef(GLfloat x, GLfloat y, GLfloat z) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glScissor(GLint x, GLint y, GLsizei width,
-                               GLsizei height) {}
+                               GLsizei height) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+    GL_UNUSED(width);
+    GL_UNUSED(height);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glSelectBuffer(GLsizei size, GLuint *buffer) {}
+EXPORT void APIENTRY glSelectBuffer(GLsizei size, GLuint *buffer) {
+    GL_UNUSED(size);
+    GL_UNUSED(buffer);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glShadeModel(GLenum mode) {}
+EXPORT void APIENTRY glShadeModel(GLenum mode) { GL_UNUSED(mode); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glStencilFunc(GLenum func, GLint ref, GLuint mask) {}
+EXPORT void APIENTRY glStencilFunc(GLenum func, GLint ref, GLuint mask) {
+    GL_UNUSED(func);
+    GL_UNUSED(ref);
+    GL_UNUSED(mask);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glStencilMask(GLuint mask) {}
+EXPORT void APIENTRY glStencilMask(GLuint mask) { GL_UNUSED(mask); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glStencilOp(GLenum fail, GLenum zfail, GLenum zpass) {}
+EXPORT void APIENTRY glStencilOp(GLenum fail, GLenum zfail, GLenum zpass) {
+    GL_UNUSED(fail);
+    GL_UNUSED(zfail);
+    GL_UNUSED(zpass);
+}
 
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glTranslated(GLdouble x, GLdouble y, GLdouble z) {
     GLdouble vec[3];
     GLdouble tmp[4][4];
-    GLdouble *CNMatrix;
-    GLdouble *CIMatrix;
+    GLMATRIX4D *CNMatrix;
+    GLMATRIX4D *CIMatrix;
 
     if (!glCheckState())
         return;
@@ -2617,8 +2672,8 @@ EXPORT void APIENTRY glTranslated(GLdouble x, GLdouble y, GLdouble z) {
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
     CIMatrix = glGetContextCurrentIMatrix(GlCurrentContext);
 
-    glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
-    glMatrix4dInverse(CIMatrix, CNMatrix);
+    glMatrix4dConcat(*CNMatrix, *CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
+    glMatrix4dInverse(*CIMatrix, *CNMatrix);
     glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
@@ -2649,7 +2704,7 @@ EXPORT void APIENTRY glVertex2d(GLdouble x, GLdouble y) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2dv(const GLdouble *v) {}
+EXPORT void APIENTRY glVertex2dv(const GLdouble *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2668,23 +2723,29 @@ EXPORT void APIENTRY glVertex2f(GLfloat x, GLfloat y) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2fv(const GLfloat *v) {}
+EXPORT void APIENTRY glVertex2fv(const GLfloat *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2i(GLint x, GLint y) {}
+EXPORT void APIENTRY glVertex2i(GLint x, GLint y) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2iv(const GLint *v) {}
+EXPORT void APIENTRY glVertex2iv(const GLint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2s(GLshort x, GLshort y) {}
+EXPORT void APIENTRY glVertex2s(GLshort x, GLshort y) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex2sv(const GLshort *v) {}
+EXPORT void APIENTRY glVertex2sv(const GLshort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2703,7 +2764,7 @@ EXPORT void APIENTRY glVertex3d(GLdouble x, GLdouble y, GLdouble z) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex3dv(const GLdouble *v) {}
+EXPORT void APIENTRY glVertex3dv(const GLdouble *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2722,7 +2783,7 @@ EXPORT void APIENTRY glVertex3f(GLfloat x, GLfloat y, GLfloat z) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex3fv(const GLfloat *v) {}
+EXPORT void APIENTRY glVertex3fv(const GLfloat *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2741,15 +2802,19 @@ EXPORT void APIENTRY glVertex3i(GLint x, GLint y, GLint z) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex3iv(const GLint *v) {}
+EXPORT void APIENTRY glVertex3iv(const GLint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex3s(GLshort x, GLshort y, GLshort z) {}
+EXPORT void APIENTRY glVertex3s(GLshort x, GLshort y, GLshort z) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+    GL_UNUSED(z);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex3sv(const GLshort *v) {}
+EXPORT void APIENTRY glVertex3sv(const GLshort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2769,7 +2834,7 @@ EXPORT void APIENTRY glVertex4d(GLdouble x, GLdouble y, GLdouble z,
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex4dv(const GLdouble *v) {}
+EXPORT void APIENTRY glVertex4dv(const GLdouble *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2788,7 +2853,7 @@ EXPORT void APIENTRY glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex4fv(const GLfloat *v) {}
+EXPORT void APIENTRY glVertex4fv(const GLfloat *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
@@ -2807,15 +2872,20 @@ EXPORT void APIENTRY glVertex4i(GLint x, GLint y, GLint z, GLint w) {
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex4iv(const GLint *v) {}
+EXPORT void APIENTRY glVertex4iv(const GLint *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w) {}
+EXPORT void APIENTRY glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+    GL_UNUSED(z);
+    GL_UNUSED(w);
+}
 
 /**********************************************************************************************/
 
-EXPORT void APIENTRY glVertex4sv(const GLshort *v) {}
+EXPORT void APIENTRY glVertex4sv(const GLshort *v) { GL_UNUSED(v); }
 
 /**********************************************************************************************/
 

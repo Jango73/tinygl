@@ -29,8 +29,8 @@
 #include "../internal/glmain.h"
 #include "../internal/glvector.h"
 
-#define GLmatrix4f(x) GLfloat x[4][4]
-#define GLmatrix4d(x) GLdouble x[4][4]
+#define GLmatrix4f(x) GLMATRIX4F x
+#define GLmatrix4d(x) GLMATRIX4D x
 
 #define GL_CLIP_PLANE_EPSILON 0.0001f
 
@@ -147,10 +147,9 @@ void glVector3dNormalize(GLdouble vec[3]) {
 void glVector3fTriangleNormal(GLfloat res[3], GLfloat v1[3], GLfloat v2[3],
                               GLfloat v3[3]) {
     GLfloat tv1[3], tv2[3];
-    GLfloat len;
 
-    glVector3fSub(&tv1, v3, v1);
-    glVector3fSub(&tv2, v2, v1);
+    glVector3fSub(tv1, v3, v1);
+    glVector3fSub(tv2, v2, v1);
     glVector3fCross(res, tv1, tv2);
     glVector3fNormalize(res);
 }
@@ -158,10 +157,9 @@ void glVector3fTriangleNormal(GLfloat res[3], GLfloat v1[3], GLfloat v2[3],
 void glVector3dTriangleNormal(GLdouble res[3], GLdouble v1[3], GLdouble v2[3],
                               GLdouble v3[3]) {
     GLdouble tv1[3], tv2[3];
-    GLdouble len;
 
-    glVector3dSub(&tv1, v3, v1);
-    glVector3dSub(&tv2, v2, v1);
+    glVector3dSub(tv1, v3, v1);
+    glVector3dSub(tv2, v2, v1);
     glVector3dCross(res, tv1, tv2);
     glVector3dNormalize(res);
 }
@@ -340,14 +338,14 @@ void glMatrix4dTimes(GLmatrix4d(res), GLmatrix4d(mat1), GLmatrix4d(mat2)) {
 
 /**********************************************************************************************/
 
-void glMatrix4dConcat(GLdouble res[4][4], GLdouble mat1[4][4],
-                      GLdouble mat2[4][4], GLenum op) {
+void glMatrix4dConcat(GLMATRIX4D res, GLMATRIX4D mat1, GLMATRIX4D mat2,
+                      GLenum op) {
     switch (op) {
     case GL_MATOP_PRECONCATENATE:
-        glMatrix4dTimes((GLdouble *)res, (GLdouble *)mat2, (GLdouble *)mat1);
+        glMatrix4dTimes(res, mat2, mat1);
         break;
     case GL_MATOP_POSTCONCATENATE:
-        glMatrix4dTimes((GLdouble *)res, (GLdouble *)mat1, (GLdouble *)mat2);
+        glMatrix4dTimes(res, mat1, mat2);
         break;
     case GL_MATOP_REPLACE:
         memcpy(res, mat1, sizeof(GLdouble) * 16);
@@ -357,9 +355,9 @@ void glMatrix4dConcat(GLdouble res[4][4], GLdouble mat1[4][4],
 
 /**********************************************************************************************/
 
-void glMatrix4dShift(GLdouble mat[4][4], GLdouble vec[3], GLenum op) {
+void glMatrix4dShift(GLMATRIX4D mat, GLdouble vec[3], GLenum op) {
     GLdouble tmp[4][4];
-    glMatrix4dIdentity((GLdouble *)tmp);
+    glMatrix4dIdentity(tmp);
     tmp[0][3] = vec[X];
     tmp[1][3] = vec[Y];
     tmp[2][3] = vec[Z];
@@ -452,7 +450,7 @@ void glMatrix4dTransVector4d(GLdouble *res, GLdouble *vec, GLmatrix4d(mat)) {
 
 /**********************************************************************************************/
 
-void TV3M4(GLdouble *res, GLdouble *vec, GLdouble mat[4][4]) {
+void TV3M4(GLdouble *res, GLdouble *vec, GLMATRIX4D mat) {
     GLdouble tmp[4];
 
     tmp[X] = mat[0][0] * vec[X] + mat[0][1] * vec[Y] + mat[0][2] * vec[Z] +
@@ -486,7 +484,7 @@ void glMatrix4fInvTransVector3f(GLfloat *res, GLfloat *vec, GLmatrix4f(mat)) {
     register GLU32 i;
     GLfloat ans[4];
 
-    glMatrix4fInverse(&temp, mat);
+    glMatrix4fInverse(temp, mat);
 
     for (i = 0; i < 3; i++) {
         ans[i] = vec[X] * temp[0][i] + vec[Y] * temp[1][i] +
@@ -503,7 +501,7 @@ void glMatrix4dInvTransVector3d(GLdouble *res, GLdouble *vec, GLmatrix4d(mat)) {
     register GLU32 i;
     GLdouble ans[4];
 
-    glMatrix4dInverse(&temp, mat);
+    glMatrix4dInverse(temp, mat);
 
     for (i = 0; i < 3; i++) {
         ans[i] = vec[X] * temp[0][i] + vec[Y] * temp[1][i] +
@@ -567,23 +565,23 @@ void glCreateRotationMatrix4f(GLmatrix4f(res), const GLfloat *vec) {
     res[1][2] = 0.0 - sinx;
     res[2][1] = sinx;
 
-    glMatrix4fIdentity(&temp);
+    glMatrix4fIdentity(temp);
 
     temp[0][0] = cosy;
     temp[2][2] = cosy;
     temp[0][2] = siny;
     temp[2][0] = 0.0 - siny;
 
-    glMatrix4fTimes(res, res, &temp);
+    glMatrix4fTimes(res, res, temp);
 
-    glMatrix4fIdentity(&temp);
+    glMatrix4fIdentity(temp);
 
     temp[0][0] = cosz;
     temp[1][1] = cosz;
     temp[0][1] = 0.0 - sinz;
     temp[1][0] = sinz;
 
-    glMatrix4fTimes(res, res, &temp);
+    glMatrix4fTimes(res, res, temp);
 }
 
 void glCreateRotationMatrix4d(GLmatrix4d(res), const GLdouble *vec) {
@@ -604,28 +602,28 @@ void glCreateRotationMatrix4d(GLmatrix4d(res), const GLdouble *vec) {
     res[1][2] = 0.0 - sinx;
     res[2][1] = sinx;
 
-    glMatrix4dIdentity(&temp);
+    glMatrix4dIdentity(temp);
 
     temp[0][0] = cosy;
     temp[2][2] = cosy;
     temp[0][2] = siny;
     temp[2][0] = 0.0 - siny;
 
-    glMatrix4dTimes(res, &temp, res);
+    glMatrix4dTimes(res, temp, res);
 
-    glMatrix4dIdentity(&temp);
+    glMatrix4dIdentity(temp);
 
     temp[0][0] = cosz;
     temp[1][1] = cosz;
     temp[0][1] = 0.0 - sinz;
     temp[1][0] = sinz;
 
-    glMatrix4dTimes(res, &temp, res);
+    glMatrix4dTimes(res, temp, res);
 }
 
 /**********************************************************************************************/
 
-void glMatrix4dRotationLine(GLdouble res[4][4], GLdouble angle, GLdouble p1[3],
+void glMatrix4dRotationLine(GLMATRIX4D res, GLdouble angle, GLdouble p1[3],
                             GLdouble p2[3]) {
     GLdouble tmp[4][4];
     GLdouble v1[3];
@@ -642,7 +640,7 @@ void glMatrix4dRotationLine(GLdouble res[4][4], GLdouble angle, GLdouble p1[3],
     cosa = cos(angle);
     sina = sin(angle);
 
-    glMatrix4dIdentity((GLdouble *)tmp);
+    glMatrix4dIdentity(tmp);
 
     tmp[0][0] = (v1[X] * v1[X]) + (1.0 - (v1[X] * v1[X])) * cosa;
     tmp[1][1] = (v1[Y] * v1[Y]) + (1.0 - (v1[Y] * v1[Y])) * cosa;

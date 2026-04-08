@@ -54,8 +54,8 @@ extern GLI32 GlClip[2][2];
 
 void glRasterTriangle();
 
-void glPolygonToClipping(LPGLPOLYGON, GLdouble *);
-void glPolygonToViewport(LPGLPOLYGON, GLI32 *);
+void glPolygonToClipping(LPGLPOLYGON, GLMATRIX4D);
+void glPolygonToViewport(LPGLPOLYGON, GLI32[4]);
 void glLightPolygon(LPGLPOLYGON, LPGLRENDERBLOCK);
 
 GLboolean glRasterSetContextAndBlock(LPGLRENDERCONTEXT, LPGLRENDERBLOCK);

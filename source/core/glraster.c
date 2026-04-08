@@ -62,8 +62,6 @@ GLI32 GlClip[2][2];
 
 static GLVERTEX TempVertices[2][GL_MAX_POLY_VERTEX];
 
-static char szTemp[256];
-
 /**********************************************************************************************/
 
 #define SWAP(a, b)                                                             \
@@ -161,7 +159,6 @@ static void glRasterLine() {
 
     GLU32 *Plane;
     GLI32 PlaneOffset;
-    GLU32 Pixel;
 
     GLI32 DepthOffset;
     GLdouble DepthValue;
@@ -174,16 +171,18 @@ static void glRasterLine() {
     GLI32 StartX, EndX;
     GLdouble SpanOffset;
 
+#ifdef FILTER
     GLdouble fr1, fg1, fb1, fr2, fg2, fb2;
     GLdouble fr3, fg3, fb3, fr4, fg4, fb4;
     GLdouble fracu, fracv;
+#endif
 
     GLboolean PassedDepthTest;
 
     /*****************************************************/
 
     GLI32 VLine;
-    GLdouble l, LineLength;
+    GLdouble LineLength;
     GLdouble z, r, g, b, w;
 
     /*****************************************************/
@@ -514,7 +513,7 @@ static void glRasterLine() {
 /**********************************************************************************************/
 
 void glRasterTriangle() {
-    long step, ln;
+    long step;
 
     if (glFaceCull(rv + 0, rv + 1, rv + 2) == FALSE)
         return;
@@ -803,8 +802,7 @@ void glRasterTriangle() {
 
 void glRasterizeTriangle(const GLVERTEX *a, const GLVERTEX *b,
                          const GLVERTEX *c) {
-    GLVERTEX *v;
-    GLdouble f;
+    const GLVERTEX *v;
 
     if (a->Screen[Z] <= 0.0 || b->Screen[Z] <= 0.0 || c->Screen[Z] <= 0.0)
         return;
@@ -1053,7 +1051,7 @@ EXPORT GLboolean APIENTRY glClipPolygon(LPGLCLIPPLANE ClipPlane,
 
 /**********************************************************************************************/
 
-void glPolygonToClipping(LPGLPOLYGON Polygon, GLdouble *Matrix) {
+void glPolygonToClipping(LPGLPOLYGON Polygon, GLMATRIX4D Matrix) {
     GLint c;
 
     for (c = 0; c < Polygon->NumVertex; c++) {
@@ -1064,9 +1062,9 @@ void glPolygonToClipping(LPGLPOLYGON Polygon, GLdouble *Matrix) {
 
 /**********************************************************************************************/
 
-void glPolygonToViewport(LPGLPOLYGON Polygon, GLI32 *Viewport) {
+void glPolygonToViewport(LPGLPOLYGON Polygon, GLI32 Viewport[4]) {
     GLdouble sx, sy;
-    GLenum c;
+    GLI32 c;
 
     sx = (GLdouble)Viewport[2] / 2.0;
     sy = (GLdouble)Viewport[3] / 2.0;
@@ -1208,7 +1206,7 @@ void glRasterizePolygon(LPGLRENDERCONTEXT Context, LPGLRENDERBLOCK Block,
 
     glPolygonToClipping(Polygon, Block->XForm.NMatrix[GL_MATRIX_PROJECTION]);
 
-    glPolygonToViewport(Polygon, &(Context->ViewPort));
+    glPolygonToViewport(Polygon, Context->ViewPort);
     for (c = 0; c < n; c++) {
         glRasterizeTriangle(Polygon->Vertex, Polygon->Vertex + c + 1,
                             Polygon->Vertex + c + 2);

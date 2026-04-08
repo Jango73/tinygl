@@ -35,49 +35,53 @@
 #define Z 2
 #define W 3
 
-// Variables local to this module
-
-static char szTemp[256];
-
-/*****************************************************************************************************/
-
-static void glMatrixGLtoMatrix4d(const GLdouble *m1, GLdouble *m2) {
-    long c, d;
-    for (d = 0; d < 4; d++)
-        for (c = 0; c < 4; c++)
-            m2[d * 4 + c] = m1[c * 4 + d];
-}
-
-/*****************************************************************************************************/
-
-static void glMatrix4dtoMatrixGL(const GLdouble *m1, GLdouble *m2) {
-    long c, d;
-    for (d = 0; d < 4; d++)
-        for (c = 0; c < 4; c++)
-            m2[d * 4 + c] = m1[c * 4 + d];
-}
-
 /*****************************************************************************************************/
 
 EXPORT void APIENTRY gluOrtho2D(GLdouble left, GLdouble right, GLdouble bottom,
-                                GLdouble top) {}
+                                GLdouble top) {
+    GL_UNUSED(left);
+    GL_UNUSED(right);
+    GL_UNUSED(bottom);
+    GL_UNUSED(top);
+}
 
 /*****************************************************************************************************/
 
 EXPORT void APIENTRY gluPerspective(GLdouble fovy, GLdouble aspect,
-                                    GLdouble zNear, GLdouble zFar) {}
+                                    GLdouble zNear, GLdouble zFar) {
+    GL_UNUSED(fovy);
+    GL_UNUSED(aspect);
+    GL_UNUSED(zNear);
+    GL_UNUSED(zFar);
+}
 
 /*****************************************************************************************************/
 
 EXPORT void APIENTRY gluPickMatrix(GLdouble x, GLdouble y, GLdouble width,
-                                   GLdouble height, GLint viewport[4]) {}
+                                   GLdouble height, GLint viewport[4]) {
+    GL_UNUSED(x);
+    GL_UNUSED(y);
+    GL_UNUSED(width);
+    GL_UNUSED(height);
+    GL_UNUSED(viewport);
+}
 
 /*****************************************************************************************************/
 
 EXPORT void APIENTRY gluLookAt(GLdouble eyex, GLdouble eyey, GLdouble eyez,
                                GLdouble centerx, GLdouble centery,
                                GLdouble centerz, GLdouble upx, GLdouble upy,
-                               GLdouble upz) {}
+                               GLdouble upz) {
+    GL_UNUSED(eyex);
+    GL_UNUSED(eyey);
+    GL_UNUSED(eyez);
+    GL_UNUSED(centerx);
+    GL_UNUSED(centery);
+    GL_UNUSED(centerz);
+    GL_UNUSED(upx);
+    GL_UNUSED(upy);
+    GL_UNUSED(upz);
+}
 
 /*****************************************************************************************************/
 
@@ -86,10 +90,10 @@ EXPORT int APIENTRY gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
                                const GLdouble prmatrix[16],
                                const GLint viewport[4], GLdouble *winx,
                                GLdouble *winy, GLdouble *winz) {
-    GLdouble mat1[4][4];
-    GLdouble mat2[4][4];
+    GLMATRIX4D mat1;
+    GLMATRIX4D mat2;
     GLdouble vec[4];
-    GLdouble sx, sy, w;
+    GLdouble sx, sy;
 
     // Check pointers
     if (momatrix == NULL || prmatrix == NULL || winx == NULL || winy == NULL ||
@@ -108,11 +112,14 @@ EXPORT int APIENTRY gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     vec[Z] = objz;
     vec[W] = 1.0;
 
+    memcpy(mat1, momatrix, sizeof(GLdouble) * 16);
+    memcpy(mat2, prmatrix, sizeof(GLdouble) * 16);
+
     // Transform point with modelview matrix
-    glMatrix4dTransVector4d(vec, vec, momatrix);
+    glMatrix4dTransVector4d(vec, vec, mat1);
 
     // Transform point with projection matrix
-    glMatrix4dTransVector4d(vec, vec, prmatrix);
+    glMatrix4dTransVector4d(vec, vec, mat2);
 
     // Transform 4d homogeneous point to 3d point
     glVector4dToVector3d(vec);
@@ -142,8 +149,7 @@ EXPORT int APIENTRY gluUnProject(GLdouble winx, GLdouble winy, GLdouble winz,
     GLdouble mat1[4][4];
     GLdouble mat2[4][4];
     GLdouble vec[4];
-    GLdouble sx, sy, w;
-    GLint c;
+    GLdouble sx, sy;
 
     // Check pointers
     if (momatrix == NULL || prmatrix == NULL || objx == NULL || objy == NULL ||

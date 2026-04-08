@@ -39,57 +39,57 @@
 
 /**********************************************************************************************/
 
-void glVector3fAdd(GLfloat *, GLfloat *, GLfloat *);
-void glVector3dAdd(GLdouble *, GLdouble *, GLdouble *);
-void glVector3fSub(GLfloat *, GLfloat *, GLfloat *);
-void glVector3dSub(GLdouble *, GLdouble *, GLdouble *);
-void glVector3fInverseScale(GLfloat *, GLfloat);
-void glVector3dInverseScale(GLdouble *, GLdouble);
-void glVector3fCross(GLfloat *, GLfloat *, GLfloat *);
-void glVector3dCross(GLdouble *, GLdouble *, GLdouble *);
-GLfloat glVector3fDot(GLfloat *, GLfloat *);
-GLdouble glVector3dDot(GLdouble *, GLdouble *);
-GLfloat glVector3fLength(GLfloat *);
-GLdouble glVector3dLength(GLdouble *);
-void glVector3fNormalize(GLfloat *);
-void glVector3dNormalize(GLdouble *);
-void glVector3fTriangleNormal(GLfloat *, GLfloat *, GLfloat *, GLfloat *);
-void glVector3dTriangleNormal(GLdouble *, GLdouble *, GLdouble *, GLdouble *);
-void glVector3fRotateX(GLfloat *, GLfloat);
-void glVector3dRotateX(GLdouble *, GLdouble);
-void glVector3fRotateY(GLfloat *, GLfloat);
-void glVector3dRotateY(GLdouble *, GLdouble);
-void glVector3fRotateZ(GLfloat *, GLfloat);
-void glVector3dRotateZ(GLdouble *, GLdouble);
-void glVector4fToVector3f(GLfloat *);
-void glVector4dToVector3d(GLdouble *);
+void glVector3fAdd(GLfloat[3], GLfloat[3], GLfloat[3]);
+void glVector3dAdd(GLdouble[3], GLdouble[3], GLdouble[3]);
+void glVector3fSub(GLfloat[3], GLfloat[3], GLfloat[3]);
+void glVector3dSub(GLdouble[3], GLdouble[3], GLdouble[3]);
+void glVector3fInverseScale(GLfloat[3], GLfloat);
+void glVector3dInverseScale(GLdouble[3], GLdouble);
+void glVector3fCross(GLfloat[3], GLfloat[3], GLfloat[3]);
+void glVector3dCross(GLdouble[3], GLdouble[3], GLdouble[3]);
+GLfloat glVector3fDot(GLfloat[3], GLfloat[3]);
+GLdouble glVector3dDot(GLdouble[3], GLdouble[3]);
+GLfloat glVector3fLength(GLfloat[3]);
+GLdouble glVector3dLength(GLdouble[3]);
+void glVector3fNormalize(GLfloat[3]);
+void glVector3dNormalize(GLdouble[3]);
+void glVector3fTriangleNormal(GLfloat[3], GLfloat[3], GLfloat[3], GLfloat[3]);
+void glVector3dTriangleNormal(GLdouble[3], GLdouble[3], GLdouble[3], GLdouble[3]);
+void glVector3fRotateX(GLfloat[3], GLfloat);
+void glVector3dRotateX(GLdouble[3], GLdouble);
+void glVector3fRotateY(GLfloat[3], GLfloat);
+void glVector3dRotateY(GLdouble[3], GLdouble);
+void glVector3fRotateZ(GLfloat[3], GLfloat);
+void glVector3dRotateZ(GLdouble[3], GLdouble);
+void glVector4fToVector3f(GLfloat[4]);
+void glVector4dToVector3d(GLdouble[4]);
 
 /**********************************************************************************************/
 
-void glMatrix4fZero(GLfloat[4][4]);
-void glMatrix4dZero(GLdouble[4][4]);
-void glMatrix4fIdentity(GLfloat[4][4]);
-void glMatrix4dIdentity(GLdouble[4][4]);
-void glMatrix4fTimes(GLfloat[4][4], GLfloat[4][4], GLfloat[4][4]);
-void glMatrix4dTimes(GLdouble[4][4], GLdouble[4][4], GLdouble[4][4]);
-void glMatrix4dConcat(GLdouble[4][4], GLdouble[4][4], GLdouble[4][4], GLenum);
-void glMatrix4fTranspose(GLfloat[4][4], GLfloat[4][4]);
-void glMatrix4dTranspose(GLdouble[4][4], GLdouble[4][4]);
-void glMatrix4fTransVector3f(GLfloat *, GLfloat *, GLfloat[4][4]);
-void glMatrix4dTransVector3d(GLdouble *, GLdouble *, GLdouble[4][4]);
-void glMatrix4dTransVector4d(GLdouble *, GLdouble *, GLdouble[4][4]);
-void TV3M4(GLdouble *, GLdouble *, GLdouble[4][4]);
-void glMatrix4fInvTransVector3f(GLfloat *, GLfloat *, GLfloat[4][4]);
-void glMatrix4dInvTransVector3d(GLdouble *, GLdouble *, GLdouble[4][4]);
-void glCreateScalingMatrix4f(GLfloat[4][4], const GLfloat *);
-void glCreateScalingMatrix4d(GLdouble[4][4], const GLdouble *);
-void glCreateTranslationMatrix4f(GLfloat[4][4], const GLfloat *);
-void glCreateTranslationMatrix4d(GLdouble[4][4], const GLdouble *);
-void glCreateRotationMatrix4f(GLfloat[4][4], const GLfloat *);
-void glCreateRotationMatrix4d(GLdouble[4][4], const GLdouble *);
-void glMatrix4dRotationLine(GLdouble[4][4], GLdouble, GLdouble *, GLdouble *);
-void glMatrix4fInverse(GLfloat[4][4], GLfloat[4][4]);
-void glMatrix4dInverse(GLdouble[4][4], GLdouble[4][4]);
+void glMatrix4fZero(GLMATRIX4F);
+void glMatrix4dZero(GLMATRIX4D);
+void glMatrix4fIdentity(GLMATRIX4F);
+void glMatrix4dIdentity(GLMATRIX4D);
+void glMatrix4fTimes(GLMATRIX4F, GLMATRIX4F, GLMATRIX4F);
+void glMatrix4dTimes(GLMATRIX4D, GLMATRIX4D, GLMATRIX4D);
+void glMatrix4dConcat(GLMATRIX4D, GLMATRIX4D, GLMATRIX4D, GLenum);
+void glMatrix4fTranspose(GLMATRIX4F, GLMATRIX4F);
+void glMatrix4dTranspose(GLMATRIX4D, GLMATRIX4D);
+void glMatrix4fTransVector3f(GLfloat *, GLfloat *, GLMATRIX4F);
+void glMatrix4dTransVector3d(GLdouble *, GLdouble *, GLMATRIX4D);
+void glMatrix4dTransVector4d(GLdouble *, GLdouble *, GLMATRIX4D);
+void TV3M4(GLdouble *, GLdouble *, GLMATRIX4D);
+void glMatrix4fInvTransVector3f(GLfloat *, GLfloat *, GLMATRIX4F);
+void glMatrix4dInvTransVector3d(GLdouble *, GLdouble *, GLMATRIX4D);
+void glCreateScalingMatrix4f(GLMATRIX4F, const GLfloat *);
+void glCreateScalingMatrix4d(GLMATRIX4D, const GLdouble *);
+void glCreateTranslationMatrix4f(GLMATRIX4F, const GLfloat *);
+void glCreateTranslationMatrix4d(GLMATRIX4D, const GLdouble *);
+void glCreateRotationMatrix4f(GLMATRIX4F, const GLfloat *);
+void glCreateRotationMatrix4d(GLMATRIX4D, const GLdouble *);
+void glMatrix4dRotationLine(GLMATRIX4D, GLdouble, GLdouble[3], GLdouble[3]);
+void glMatrix4fInverse(GLMATRIX4F, GLMATRIX4F);
+void glMatrix4dInverse(GLMATRIX4D, GLMATRIX4D);
 
 /**********************************************************************************************/
 
