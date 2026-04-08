@@ -24,6 +24,18 @@ int main(void) {
     TGL_CONTEXT_DESC ContextDesc;
     TGLContext Context;
     TGL_RESULT Result;
+    TGL_VERSION Version;
+
+    Result = tinyglGetVersion(&Version);
+    if (Result != TGL_RESULT_OK) {
+        return failExternalSmoke("tinyglGetVersion failed");
+    }
+
+    if (Version.Major != TINYGL_VERSION_MAJOR ||
+        Version.Minor != TINYGL_VERSION_MINOR ||
+        Version.Patch != TINYGL_VERSION_PATCH) {
+        return failExternalSmoke("version API does not match public defines");
+    }
 
     ContextDesc.MaxWidth = 32;
     ContextDesc.MaxHeight = 32;

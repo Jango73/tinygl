@@ -34,6 +34,12 @@ extern "C" {
 
 /**********************************************************************************************/
 
+#define TINYGL_VERSION_MAJOR 0
+#define TINYGL_VERSION_MINOR 1
+#define TINYGL_VERSION_PATCH 0
+
+/**********************************************************************************************/
+
 typedef unsigned long GLenum;
 typedef unsigned char GLboolean;
 typedef unsigned long GLbitfield;
@@ -117,6 +123,12 @@ typedef struct TGL_CONTEXT_DESC {
     GLboolean HasDepthBuffer;
     GLboolean HasColorBuffer;
 } TGL_CONTEXT_DESC;
+
+typedef struct TGL_VERSION {
+    GLint Major;
+    GLint Minor;
+    GLint Patch;
+} TGL_VERSION;
 
 typedef TGL_PRESENT_RESULT(APIENTRY *TGL_PRESENT_PROC)(
     void *UserData, const TGL_SURFACE_DESC *Surface);
@@ -691,6 +703,7 @@ typedef struct TGL_BRIDGE_CALLBACKS {
 
 EXPORT TGL_RESULT APIENTRY
 tinyglCreateContext(const TGL_CONTEXT_DESC *ContextDesc, TGLContext *OutContext);
+EXPORT TGL_RESULT APIENTRY tinyglGetVersion(TGL_VERSION *Version);
 EXPORT TGL_RESULT APIENTRY tinyglDestroyContext(TGLContext Context);
 EXPORT TGL_RESULT APIENTRY tinyglMakeCurrent(TGLContext Context);
 EXPORT TGLContext APIENTRY tinyglGetCurrentContext(void);

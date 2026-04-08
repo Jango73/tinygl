@@ -112,13 +112,13 @@ On Linux, the current build produces both forms:
 Build command:
 
 ```bash
-bash scripts/linux/build/build
+bash scripts/linux/build
 ```
 
 Global verification command:
 
 ```bash
-bash scripts/linux/test/smoke-test-global.sh
+bash scripts/linux/smoke-test-global.sh
 ```
 
 That verification checks:

@@ -4,8 +4,8 @@ set -eu
 
 ScriptDir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
-# shellcheck source=../common.sh
-. "${ScriptDir}/../common.sh"
+# shellcheck source=./common.sh
+. "${ScriptDir}/common.sh"
 
 BuildDir="$(getBuildDir)"
 InstallPrefix="$(mktemp -d /tmp/tinygl-phase9-install.XXXXXX)"
@@ -19,7 +19,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-"${ScriptDir}/../build/build"
+"${ScriptDir}/build"
 
 if [ ! -f "${BuildDir}/libtinygl.so" ]; then
     printf 'phase9: missing shared library: %s/libtinygl.so\n' "${BuildDir}" >&2
@@ -48,7 +48,7 @@ if ! grep -q ' glGetError$' "${ExportList}"; then
     exit 1
 fi
 
-"${ScriptDir}/../install/install" "${InstallPrefix}"
+"${ScriptDir}/install" "${InstallPrefix}"
 
 cc \
     "${PROJECT_ROOT}/tests/external/external_linkage_smoke.c" \

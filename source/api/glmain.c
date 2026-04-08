@@ -1101,6 +1101,27 @@ tinyglCreateContext(const TGL_CONTEXT_DESC *ContextDesc, TGLContext *OutContext)
 
 /**********************************************************************************************/
 
+/**
+ * @brief Return the TinyGL library version.
+ * @param Version Receives the semantic version components.
+ * @return TGL_RESULT_OK on success, otherwise an error code.
+ */
+EXPORT TGL_RESULT APIENTRY tinyglGetVersion(TGL_VERSION *Version) {
+    if (Version == NULL) {
+        glSetLibraryError(TGL_ERROR_INVALID_ARGUMENT);
+        return TGL_RESULT_INVALID_ARGUMENT;
+    }
+
+    Version->Major = TINYGL_VERSION_MAJOR;
+    Version->Minor = TINYGL_VERSION_MINOR;
+    Version->Patch = TINYGL_VERSION_PATCH;
+
+    glClearLibraryError();
+    return TGL_RESULT_OK;
+}
+
+/**********************************************************************************************/
+
 EXPORT TGL_RESULT APIENTRY tinyglDestroyContext(TGLContext Context) {
     GLU32 ContextIndex;
 

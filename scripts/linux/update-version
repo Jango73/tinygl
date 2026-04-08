@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -eu
+
+ScriptDir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+
+# shellcheck source=./common.sh
+. "${ScriptDir}/common.sh"
+
+# ----------------------------------------------------------------------
+
+printUsage() {
+    printf 'Usage: %s <major.minor.patch>\n' "$0" >&2
+}
+
+# ----------------------------------------------------------------------
+
+parseVersion() {
+    local VersionString
+
+    VersionString="${1:-}"
+
+    if [[ ! "${VersionString}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        return 1
+    fi
+
+    printf '%s\n%s\n%s\n' \
+        "${BASH_REMATCH[1]}" \
+        "${BASH_REMATCH[2]}" \
+        "${BASH_REMATCH[3]}"
+}
+
+# ----------------------------------------------------------------------
+
+replaceHeaderVersion() {
+    local HeaderPath
+    local MajorVersion
+    local MinorVersion
+    local PatchVersion
+
+    HeaderPath="${PROJECT_ROOT}/include/tinygl.h"
+    MajorVersion="${1}"
+    MinorVersion="${2}"
+    PatchVersion="${3}"
+
+    sed -i \
+        -e "s/^#define TINYGL_VERSION_MAJOR [0-9][0-9]*$/#define TINYGL_VERSION_MAJOR ${MajorVersion}/" \
+        -e "s/^#define TINYGL_VERSION_MINOR [0-9][0-9]*$/#define TINYGL_VERSION_MINOR ${MinorVersion}/" \
+        -e "s/^#define TINYGL_VERSION_PATCH [0-9][0-9]*$/#define TINYGL_VERSION_PATCH ${PatchVersion}/" \
+        "${HeaderPath}"
+}
+
+# ----------------------------------------------------------------------
+
+main() {
+    local ParsedVersion
+    local MajorVersion
+    local MinorVersion
+    local PatchVersion
+
+    if [ "$#" -ne 1 ]; then
+        printUsage
+        exit 1
+    fi
+
+    if ! ParsedVersion="$(parseVersion "$1")"; then
+        printUsage
+        printf 'Invalid version: %s\n' "$1" >&2
+        exit 1
+    fi
+
+    MajorVersion="$(printf '%s\n' "${ParsedVersion}" | sed -n '1p')"
+    MinorVersion="$(printf '%s\n' "${ParsedVersion}" | sed -n '2p')"
+    PatchVersion="$(printf '%s\n' "${ParsedVersion}" | sed -n '3p')"
+
+    replaceHeaderVersion "${MajorVersion}" "${MinorVersion}" "${PatchVersion}"
+}
+
+# ----------------------------------------------------------------------
+
+main "$@"
