@@ -199,6 +199,7 @@ static void renderSmokeTriangle(GLfloat Red, GLfloat Green, GLfloat Blue,
     Emission[3] = 1.0f;
 
     glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, Emission);
+    glColor3f(Red, Green, Blue);
     glBegin(GL_TRIANGLES);
     glVertex2f(LeftX, BottomY);
     glVertex2f(RightX, BottomY);

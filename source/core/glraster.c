@@ -81,6 +81,33 @@ static char szTemp[256];
 
 /**********************************************************************************************/
 
+/**
+ * Compute the covered horizontal pixel range for one scanline.
+ */
+static GLboolean glSetupRasterSpan(GLdouble StartX, GLdouble EndX,
+                                   GLI32 *SpanStartX, GLI32 *SpanEndX,
+                                   GLdouble *SpanOffset) {
+    GLdouble FirstPixel;
+    GLdouble LastPixel;
+
+    if (EndX <= StartX)
+        return FALSE;
+
+    FirstPixel = ceil(StartX);
+    LastPixel = ceil(EndX) - 1.0;
+
+    if (LastPixel < FirstPixel)
+        return FALSE;
+
+    *SpanStartX = (GLI32)FirstPixel;
+    *SpanEndX = (GLI32)LastPixel;
+    *SpanOffset = FirstPixel - StartX;
+
+    return TRUE;
+}
+
+/**********************************************************************************************/
+
 GLboolean glFaceCull(GLrastervertex *v1, GLrastervertex *v2,
                      GLrastervertex *v3) {
     GLdouble a, tmp;
@@ -145,6 +172,7 @@ static void glRasterLine() {
     GLI32 RealU, RealV;
 
     GLI32 StartX, EndX;
+    GLdouble SpanOffset;
 
     GLdouble fr1, fg1, fb1, fr2, fg2, fb2;
     GLdouble fr3, fg3, fb3, fr4, fg4, fb4;
@@ -170,19 +198,10 @@ static void glRasterLine() {
 
     // rle.x++;
 
-    LineLength = RasLineEnd.x - RasLineStart.x;
-    if (LineLength == 0.0)
+    if (glSetupRasterSpan(RasLineStart.x, RasLineEnd.x, &StartX, &EndX,
+                          &SpanOffset) == FALSE)
         return;
-
-    RasLineVertex.x = RasLineStart.x;
-    RasLineVertex.z = RasLineStart.z;
-    RasLineVertex.r = RasLineStart.r;
-    RasLineVertex.g = RasLineStart.g;
-    RasLineVertex.b = RasLineStart.b;
-    RasLineVertex.a = RasLineStart.a;
-    RasLineVertex.u = RasLineStart.u;
-    RasLineVertex.v = RasLineStart.v;
-    RasLineVertex.w = RasLineStart.w;
+    LineLength = (EndX - StartX) + 1;
 
     RasLineDelta.z = (RasLineEnd.z - RasLineStart.z) / LineLength;
     RasLineDelta.r = (RasLineEnd.r - RasLineStart.r) / LineLength;
@@ -193,8 +212,18 @@ static void glRasterLine() {
     RasLineDelta.v = (RasLineEnd.v - RasLineStart.v) / LineLength;
     RasLineDelta.w = (RasLineEnd.w - RasLineStart.w) / LineLength;
 
-    PlaneOffset = RasLineVertex.x;
-    DepthOffset = (rll * RasterRenderContext->Width) + RasLineVertex.x;
+    RasLineVertex.x = StartX;
+    RasLineVertex.z = RasLineStart.z + (RasLineDelta.z * SpanOffset);
+    RasLineVertex.r = RasLineStart.r + (RasLineDelta.r * SpanOffset);
+    RasLineVertex.g = RasLineStart.g + (RasLineDelta.g * SpanOffset);
+    RasLineVertex.b = RasLineStart.b + (RasLineDelta.b * SpanOffset);
+    RasLineVertex.a = RasLineStart.a + (RasLineDelta.a * SpanOffset);
+    RasLineVertex.u = RasLineStart.u + (RasLineDelta.u * SpanOffset);
+    RasLineVertex.v = RasLineStart.v + (RasLineDelta.v * SpanOffset);
+    RasLineVertex.w = RasLineStart.w + (RasLineDelta.w * SpanOffset);
+
+    PlaneOffset = StartX;
+    DepthOffset = (rll * RasterRenderContext->Width) + StartX;
     Texture = (GLU32 *)GlTexturePlane;
     Plane = (GLU32 *)((GLU8 *)RasterRenderContext->ColorBuffer +
                       (VLine * RasterRenderContext->Surface.Pitch));
@@ -202,7 +231,7 @@ static void glRasterLine() {
     // Main loop
 
     for (c = 0; c < LineLength; c++) {
-        if (RasLineVertex.x > GlClip[1][X])
+        if (RasLineVertex.x > EndX || RasLineVertex.x > GlClip[1][X])
             break;
 
         if (RasLineVertex.x >= GlClip[0][X]) {
@@ -452,7 +481,7 @@ static void glRasterLine() {
                     g *= 255.0;
                     b *= 255.0;
 
-                    Plane[PlaneOffset++] = RGB_TO_RGB888(r, g, b);
+                    Plane[PlaneOffset] = RGB_TO_RGB888(r, g, b);
 
                     NumPixelPassed++;
 
@@ -475,6 +504,7 @@ static void glRasterLine() {
         RasLineVertex.v += RasLineDelta.v;
         RasLineVertex.w += RasLineDelta.w;
 
+        PlaneOffset++;
         DepthOffset++;
     }
 
@@ -1065,6 +1095,9 @@ void glLightPolygon(LPGLPOLYGON Polygon, LPGLRENDERBLOCK Block) {
     GLdouble Diffuse;
     GLdouble Specular;
     GLI32 c, d;
+
+    if (Block->RenderFlag.Lighting == FALSE)
+        return;
 
     for (c = 0; c < Polygon->NumVertex; c++) {
         // Assign material emission to vertex color

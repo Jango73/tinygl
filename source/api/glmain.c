@@ -59,6 +59,63 @@ static void glDestroyAllContexts(void);
 
 /**********************************************************************************************/
 
+/**
+ * @brief Get the maximum depth of one matrix stack.
+ * @param MatrixMode The internal matrix mode.
+ * @return The maximum number of entries for that stack.
+ */
+static GLI32 glGetMatrixStackMaxDepth(GLenum MatrixMode) {
+    switch (MatrixMode) {
+    case GL_MATRIX_MODELVIEW:
+        return GL_MODELVIEW_MATRIX_STACK_MAX;
+
+    case GL_MATRIX_PROJECTION:
+        return GL_PROJECTION_MATRIX_STACK_MAX;
+
+    case GL_MATRIX_TEXTURE:
+        return GL_TEXTURE_MATRIX_STACK_MAX;
+
+    default:
+        return 0;
+    }
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Copy one 4x4 matrix.
+ * @param Destination The destination matrix.
+ * @param Source The source matrix.
+ */
+static void glCopyMatrix4d(GLdouble Destination[4][4],
+                           const GLdouble Source[4][4]) {
+    memcpy(Destination, Source, sizeof(GLdouble) * 16);
+}
+
+/**********************************************************************************************/
+
+/**
+ * @brief Synchronize the active matrix into the current stack entry.
+ * @param Context The render context.
+ */
+static void glSyncCurrentMatrixStackEntry(LPGLRENDERCONTEXT Context) {
+    GLenum MatrixMode;
+    GLI32 StackIndex;
+
+    MatrixMode = Context->Block.XForm.MatrixMode;
+    StackIndex = Context->Block.XForm.MatrixStackDepth[MatrixMode] - 1;
+
+    if (StackIndex < 0)
+        return;
+
+    glCopyMatrix4d(Context->Block.XForm.NMatrixStack[MatrixMode][StackIndex],
+                   Context->Block.XForm.NMatrix[MatrixMode]);
+    glCopyMatrix4d(Context->Block.XForm.IMatrixStack[MatrixMode][StackIndex],
+                   Context->Block.XForm.IMatrix[MatrixMode]);
+}
+
+/**********************************************************************************************/
+
 static GLboolean glCheckState() {
     if (GlCurrentContext == NULL)
         return FALSE;
@@ -582,6 +639,7 @@ void glResetPolygon(LPGLPOLYGON Polygon) {
 
 static void glInitRenderContext(LPGLRENDERCONTEXT rc) {
     GLint c;
+    GLint d;
 
     rc->Block.RenderFunc.RenderMode = 1;
 
@@ -601,6 +659,10 @@ static void glInitRenderContext(LPGLRENDERCONTEXT rc) {
     rc->Block.RenderFunc.GMask = TRUE;
     rc->Block.RenderFunc.BMask = TRUE;
     rc->Block.RenderFunc.AMask = TRUE;
+    rc->Block.RenderFunc.ClearColor[R] = 0.0;
+    rc->Block.RenderFunc.ClearColor[G] = 0.0;
+    rc->Block.RenderFunc.ClearColor[B] = 0.0;
+    rc->Block.RenderFunc.ClearColor[A] = 1.0;
 
     rc->Block.RenderFunc.DepthMask = TRUE;
     rc->Block.RenderFunc.DepthFunc = GL_LESS;
@@ -624,6 +686,17 @@ static void glInitRenderContext(LPGLRENDERCONTEXT rc) {
         glMatrix4dIdentity(&(rc->Block.XForm.NMatrix[c][0][0]));
         glMatrix4dInverse(&(rc->Block.XForm.IMatrix[c][0][0]),
                           &(rc->Block.XForm.NMatrix[c][0][0]));
+        rc->Block.XForm.MatrixStackDepth[c] = 1;
+
+        for (d = 0; d < GL_MODELVIEW_MATRIX_STACK_MAX; d++) {
+            glMatrix4dIdentity(&(rc->Block.XForm.NMatrixStack[c][d][0][0]));
+            glMatrix4dIdentity(&(rc->Block.XForm.IMatrixStack[c][d][0][0]));
+        }
+
+        glCopyMatrix4d(rc->Block.XForm.NMatrixStack[c][0],
+                       rc->Block.XForm.NMatrix[c]);
+        glCopyMatrix4d(rc->Block.XForm.IMatrixStack[c][0],
+                       rc->Block.XForm.IMatrix[c]);
     }
 
     glComputeFrustum(rc, &(rc->Block));
@@ -1385,12 +1458,54 @@ EXPORT void APIENTRY glBlendFunc(GLenum sfactor, GLenum dfactor) {
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glClear(GLbitfield mask) {
+    GLU32 *ColorBuffer;
+    GLU32 ClearColor;
     GLfloat *DepthBuffer;
     GLfloat ClearDepth;
     GLint c;
 
     if (!glCheckState())
         return;
+
+    if (mask & GL_COLOR_BUFFER_BIT) {
+        if (GlCurrentContext->ColorBuffer) {
+            ColorBuffer = (GLU32 *)GlCurrentContext->ColorBuffer;
+
+            switch (GlCurrentContext->SurfacePixelFormat) {
+            case TGL_PIXEL_FORMAT_ARGB8888:
+                ClearColor =
+                    (((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[A] *
+                              255.0))
+                     << 24) |
+                    (((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[R] *
+                              255.0))
+                     << 16) |
+                    (((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[G] *
+                              255.0))
+                     << 8) |
+                    ((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[B] *
+                             255.0));
+                break;
+
+            case TGL_PIXEL_FORMAT_XRGB8888:
+            default:
+                ClearColor =
+                    (((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[R] *
+                              255.0))
+                     << 16) |
+                    (((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[G] *
+                              255.0))
+                     << 8) |
+                    ((GLU32)(GlCurrentContext->Block.RenderFunc.ClearColor[B] *
+                             255.0));
+                break;
+            }
+
+            for (c = 0; c < (GlCurrentContext->ColorBufferSize / 4); c++) {
+                ColorBuffer[c] = ClearColor;
+            }
+        }
+    }
 
     if (mask & GL_DEPTH_BUFFER_BIT) {
         if (GlCurrentContext->DepthBuffer) {
@@ -1411,7 +1526,20 @@ EXPORT void APIENTRY glClearAccum(GLfloat red, GLfloat green, GLfloat blue,
 /**********************************************************************************************/
 
 EXPORT void APIENTRY glClearColor(GLclampf red, GLclampf green, GLclampf blue,
-                                  GLclampf alpha) {}
+                                  GLclampf alpha) {
+    if (GlCurrentContext == NULL)
+        return;
+
+    CLAMP(red, 0.0, 1.0);
+    CLAMP(green, 0.0, 1.0);
+    CLAMP(blue, 0.0, 1.0);
+    CLAMP(alpha, 0.0, 1.0);
+
+    GlCurrentContext->Block.RenderFunc.ClearColor[R] = red;
+    GlCurrentContext->Block.RenderFunc.ClearColor[G] = green;
+    GlCurrentContext->Block.RenderFunc.ClearColor[B] = blue;
+    GlCurrentContext->Block.RenderFunc.ClearColor[A] = alpha;
+}
 
 /**********************************************************************************************/
 
@@ -1617,12 +1745,12 @@ EXPORT void APIENTRY glFrustum(GLdouble left, GLdouble right, GLdouble bottom,
 
     tmp[2][0] = 0.0;
     tmp[2][1] = 0.0;
-    tmp[2][2] = (2.0 * znear) / (zfar - znear);
-    tmp[2][3] = -(zfar + znear) / (zfar - znear);
+    tmp[2][2] = 0.0 - ((zfar + znear) / (zfar - znear));
+    tmp[2][3] = 0.0 - ((2.0 * zfar * znear) / (zfar - znear));
 
     tmp[3][0] = 0.0;
     tmp[3][1] = 0.0;
-    tmp[3][2] = 1.0;
+    tmp[3][2] = -1.0;
     tmp[3][3] = 0.0;
 
     CNMatrix = glGetContextCurrentNMatrix(GlCurrentContext);
@@ -1630,6 +1758,7 @@ EXPORT void APIENTRY glFrustum(GLdouble left, GLdouble right, GLdouble bottom,
 
     glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -1961,6 +2090,7 @@ EXPORT void APIENTRY glLoadIdentity() {
 
     glMatrix4dIdentity(mat1);
     glMatrix4dInverse(mat2, mat1);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -1984,6 +2114,7 @@ EXPORT void APIENTRY glLoadMatrixd(const GLdouble *Matrix) {
         CNMatrix[c] = Matrix[c];
 
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2007,6 +2138,7 @@ EXPORT void APIENTRY glLoadMatrixf(const GLfloat *Matrix) {
         CNMatrix[c] = Matrix[c];
 
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2155,6 +2287,7 @@ EXPORT void APIENTRY glMultMatrixd(const GLdouble *Matrix) {
 
     glMatrix4dTimes(CNMatrix, Temp, CNMatrix);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2180,6 +2313,7 @@ EXPORT void APIENTRY glMultMatrixf(const GLfloat *Matrix) {
 
     glMatrix4dTimes(CNMatrix, Temp, CNMatrix);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2268,17 +2402,17 @@ EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
     tmp[0][0] = 2.0 / (right - left);
     tmp[0][1] = 0.0;
     tmp[0][2] = 0.0;
-    tmp[0][3] = (right + left) / (right - left);
+    tmp[0][3] = 0.0 - ((right + left) / (right - left));
 
     tmp[1][0] = 0.0;
     tmp[1][1] = 2.0 / (top - bottom);
     tmp[1][2] = 0.0;
-    tmp[1][3] = (top + bottom) / (top - bottom);
+    tmp[1][3] = 0.0 - ((top + bottom) / (top - bottom));
 
     tmp[2][0] = 0.0;
     tmp[2][1] = 0.0;
-    tmp[2][2] = 2.0 / (zfar - znear);
-    tmp[2][3] = (zfar + znear) / (zfar - znear);
+    tmp[2][2] = 0.0 - (2.0 / (zfar - znear));
+    tmp[2][3] = 0.0 - ((zfar + znear) / (zfar - znear));
 
     tmp[3][0] = 0.0;
     tmp[3][1] = 0.0;
@@ -2290,6 +2424,7 @@ EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
 
     glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2299,6 +2434,67 @@ EXPORT void APIENTRY glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
 /**********************************************************************************************/
 
 EXPORT GLint APIENTRY glRenderMode(GLenum mode) { return 0; }
+
+/**********************************************************************************************/
+
+EXPORT void APIENTRY glPopMatrix() {
+    GLenum MatrixMode;
+    GLI32 StackDepth;
+
+    if (!glCheckState())
+        return;
+
+    MatrixMode = GlCurrentContext->Block.XForm.MatrixMode;
+    StackDepth = GlCurrentContext->Block.XForm.MatrixStackDepth[MatrixMode];
+
+    if (StackDepth <= 1) {
+        glSetErrorCode(GL_STACK_UNDERFLOW);
+        return;
+    }
+
+    StackDepth--;
+    GlCurrentContext->Block.XForm.MatrixStackDepth[MatrixMode] = StackDepth;
+
+    glCopyMatrix4d(GlCurrentContext->Block.XForm.NMatrix[MatrixMode],
+                   GlCurrentContext->Block.XForm.NMatrixStack[MatrixMode]
+                                                          [StackDepth - 1]);
+    glCopyMatrix4d(GlCurrentContext->Block.XForm.IMatrix[MatrixMode],
+                   GlCurrentContext->Block.XForm.IMatrixStack[MatrixMode]
+                                                          [StackDepth - 1]);
+
+    if (MatrixMode == GL_MATRIX_PROJECTION) {
+        glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
+    }
+}
+
+/**********************************************************************************************/
+
+EXPORT void APIENTRY glPushMatrix() {
+    GLenum MatrixMode;
+    GLI32 StackDepth;
+    GLI32 MaxDepth;
+
+    if (!glCheckState())
+        return;
+
+    MatrixMode = GlCurrentContext->Block.XForm.MatrixMode;
+    StackDepth = GlCurrentContext->Block.XForm.MatrixStackDepth[MatrixMode];
+    MaxDepth = glGetMatrixStackMaxDepth(MatrixMode);
+
+    if (StackDepth >= MaxDepth) {
+        glSetErrorCode(GL_STACK_OVERFLOW);
+        return;
+    }
+
+    glCopyMatrix4d(GlCurrentContext->Block.XForm.NMatrixStack[MatrixMode]
+                                                          [StackDepth],
+                   GlCurrentContext->Block.XForm.NMatrix[MatrixMode]);
+    glCopyMatrix4d(GlCurrentContext->Block.XForm.IMatrixStack[MatrixMode]
+                                                          [StackDepth],
+                   GlCurrentContext->Block.XForm.IMatrix[MatrixMode]);
+
+    GlCurrentContext->Block.XForm.MatrixStackDepth[MatrixMode] = StackDepth + 1;
+}
 
 /**********************************************************************************************/
 
@@ -2330,6 +2526,7 @@ EXPORT void APIENTRY glRotated(GLdouble angle, GLdouble x, GLdouble y,
 
     glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2363,6 +2560,7 @@ EXPORT void APIENTRY glScaled(GLdouble x, GLdouble y, GLdouble z) {
 
     glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));
@@ -2421,6 +2619,7 @@ EXPORT void APIENTRY glTranslated(GLdouble x, GLdouble y, GLdouble z) {
 
     glMatrix4dConcat(CNMatrix, CNMatrix, tmp, GL_MATOP_POSTCONCATENATE);
     glMatrix4dInverse(CIMatrix, CNMatrix);
+    glSyncCurrentMatrixStackEntry(GlCurrentContext);
 
     if (GlCurrentContext->Block.XForm.MatrixMode == GL_MATRIX_PROJECTION) {
         glComputeFrustum(GlCurrentContext, &(GlCurrentContext->Block));

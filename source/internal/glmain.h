@@ -51,6 +51,10 @@
 #define GL_MATRIX_PROJECTION 1
 #define GL_MATRIX_TEXTURE 2
 
+#define GL_MODELVIEW_MATRIX_STACK_MAX 32
+#define GL_PROJECTION_MATRIX_STACK_MAX 2
+#define GL_TEXTURE_MATRIX_STACK_MAX 2
+
 /*****************************************************************************************************/
 
 typedef unsigned char GLU8;
@@ -106,6 +110,7 @@ typedef struct tag_GLRENDERFUNCTIONS {
     GLboolean GMask;
     GLboolean BMask;
     GLboolean AMask;
+    GLdouble ClearColor[4];
 
     GLboolean DepthMask;
     GLenum DepthFunc;
@@ -152,6 +157,9 @@ typedef struct tag_GLXFORMDATA {
     GLenum MatrixMode;
     GLdouble NMatrix[3][4][4];
     GLdouble IMatrix[3][4][4];
+    GLdouble NMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX][4][4];
+    GLdouble IMatrixStack[3][GL_MODELVIEW_MATRIX_STACK_MAX][4][4];
+    GLI32 MatrixStackDepth[3];
     GLCLIPPLANE Plane[6];
 } GLXFORMDATA, *LPGLXFORMDATA;
 

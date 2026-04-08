@@ -564,15 +564,15 @@ void glCreateRotationMatrix4f(GLmatrix4f(res), const GLfloat *vec) {
 
     res[1][1] = cosx;
     res[2][2] = cosx;
-    res[1][2] = sinx;
-    res[2][1] = 0.0 - sinx;
+    res[1][2] = 0.0 - sinx;
+    res[2][1] = sinx;
 
     glMatrix4fIdentity(&temp);
 
     temp[0][0] = cosy;
     temp[2][2] = cosy;
-    temp[0][2] = 0.0 - siny;
-    temp[2][0] = siny;
+    temp[0][2] = siny;
+    temp[2][0] = 0.0 - siny;
 
     glMatrix4fTimes(res, res, &temp);
 
@@ -580,8 +580,8 @@ void glCreateRotationMatrix4f(GLmatrix4f(res), const GLfloat *vec) {
 
     temp[0][0] = cosz;
     temp[1][1] = cosz;
-    temp[0][1] = sinz;
-    temp[1][0] = 0.0 - sinz;
+    temp[0][1] = 0.0 - sinz;
+    temp[1][0] = sinz;
 
     glMatrix4fTimes(res, res, &temp);
 }
@@ -601,15 +601,15 @@ void glCreateRotationMatrix4d(GLmatrix4d(res), const GLdouble *vec) {
 
     res[1][1] = cosx;
     res[2][2] = cosx;
-    res[1][2] = sinx;
-    res[2][1] = 0.0 - sinx;
+    res[1][2] = 0.0 - sinx;
+    res[2][1] = sinx;
 
     glMatrix4dIdentity(&temp);
 
     temp[0][0] = cosy;
     temp[2][2] = cosy;
-    temp[0][2] = 0.0 - siny;
-    temp[2][0] = siny;
+    temp[0][2] = siny;
+    temp[2][0] = 0.0 - siny;
 
     glMatrix4dTimes(res, &temp, res);
 
@@ -617,8 +617,8 @@ void glCreateRotationMatrix4d(GLmatrix4d(res), const GLdouble *vec) {
 
     temp[0][0] = cosz;
     temp[1][1] = cosz;
-    temp[0][1] = sinz;
-    temp[1][0] = 0.0 - sinz;
+    temp[0][1] = 0.0 - sinz;
+    temp[1][0] = sinz;
 
     glMatrix4dTimes(res, &temp, res);
 }
