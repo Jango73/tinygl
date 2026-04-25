@@ -216,8 +216,11 @@ typedef struct TGL_BRIDGE_CALLBACKS {
 /* Boolean */
 #define GL_TRUE 1
 #define GL_FALSE 0
+
+#ifndef TRUE
 #define TRUE GL_TRUE
 #define FALSE GL_FALSE
+#endif
 
 /* ClipPlaneName */
 #define GL_CLIP_PLANE0 0x3000
