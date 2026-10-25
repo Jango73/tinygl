@@ -1,5 +1,7 @@
 #include "tinygl_demo.h"
+#include "tinygl_demo_overlay.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +16,28 @@
 #define TINYGL_DEMO_SMALL_CUBE_OFFSET_X 0.0f
 #define TINYGL_DEMO_SMALL_CUBE_OFFSET_Y 1.0f
 #define TINYGL_DEMO_SMALL_CUBE_OFFSET_Z 0.0f
+#define TINYGL_DEMO_MANY_CUBES_SEED 0x1A2B
+#define TINYGL_DEMO_MANY_CUBES_MIN_SCALE 0.12f
+#define TINYGL_DEMO_MANY_CUBES_MAX_SCALE 0.30f
+#define TINYGL_DEMO_MANY_CUBES_MIN_POSITION_X -7.0f
+#define TINYGL_DEMO_MANY_CUBES_MAX_POSITION_X 7.0f
+#define TINYGL_DEMO_MANY_CUBES_MIN_POSITION_Y -4.0f
+#define TINYGL_DEMO_MANY_CUBES_MAX_POSITION_Y 4.0f
+#define TINYGL_DEMO_MANY_CUBES_MIN_POSITION_Z -12.0f
+#define TINYGL_DEMO_MANY_CUBES_MAX_POSITION_Z 3.0f
+#define TINYGL_DEMO_MANY_CUBES_MIN_SPEED 15.0f
+#define TINYGL_DEMO_MANY_CUBES_MAX_SPEED 110.0f
+#define TINYGL_DEMO_MANY_CUBES_FULL_ANGLE 360.0f
+#define TINYGL_DEMO_MANY_CUBES_GOLDEN_RATIO 0.618034f
+#define TINYGL_DEMO_MANY_CUBES_SATURATION 0.80f
+#define TINYGL_DEMO_MANY_CUBES_VALUE 0.95f
+#define TINYGL_DEMO_MANY_MATERIAL_AMBIENT_SCALE 0.55f
+#define TINYGL_DEMO_MANY_MATERIAL_EMISSION_SCALE 0.28f
+#define TINYGL_DEMO_MANY_NOISE_MIN_AMPLITUDE 0.25f
+#define TINYGL_DEMO_MANY_NOISE_MAX_AMPLITUDE 0.70f
+#define TINYGL_DEMO_MANY_NOISE_MIN_FREQUENCY 0.30f
+#define TINYGL_DEMO_MANY_NOISE_MAX_FREQUENCY 1.10f
+#define TINYGL_DEMO_MANY_NOISE_FULL_PHASE 6.283185f
 
 /************************************************************************/
 
@@ -26,6 +50,12 @@ static const GLfloat TINYGL_DEMO_MATERIAL_DIFFUSE[4] = {0.80f, 0.80f, 0.80f, 1.0
 static const GLfloat TINYGL_DEMO_MATERIAL_SPECULAR[4] = {0.25f, 0.25f, 0.25f, 1.0f};
 static const GLfloat TINYGL_DEMO_MATERIAL_EMISSION[4] = {0.00f, 0.00f, 0.00f, 1.0f};
 static const GLfloat TINYGL_DEMO_MATERIAL_SHININESS[1] = {12.0f};
+static const GLfloat TINYGL_DEMO_MANY_KEY_AMBIENT[4] = {0.38f, 0.38f, 0.38f, 1.0f};
+static const GLfloat TINYGL_DEMO_MANY_KEY_DIFFUSE[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+static const GLfloat TINYGL_DEMO_MANY_FILL_POSITION[4] = {-4.0f, -2.0f, 2.0f, 1.0f};
+static const GLfloat TINYGL_DEMO_MANY_FILL_AMBIENT[4] = {0.18f, 0.18f, 0.18f, 1.0f};
+static const GLfloat TINYGL_DEMO_MANY_FILL_DIFFUSE[4] = {0.60f, 0.60f, 0.60f, 1.0f};
+static const GLfloat TINYGL_DEMO_MANY_FILL_SPECULAR[4] = {0.00f, 0.00f, 0.00f, 1.0f};
 
 /************************************************************************/
 
@@ -106,6 +136,227 @@ static int allocateHostSurface(TINYGL_DEMO_APP *App, GLsizei Width,
 /************************************************************************/
 
 /**
+ * @brief Draw a random float inside a closed range.
+ * @param MinValue The minimum value.
+ * @param MaxValue The maximum value.
+ * @return The random value.
+ */
+static GLfloat randomFloatInRange(GLfloat MinValue, GLfloat MaxValue) {
+    GLfloat UnitValue;
+
+    UnitValue = (GLfloat)rand() / (GLfloat)RAND_MAX;
+    return MinValue + UnitValue * (MaxValue - MinValue);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sample a smooth pseudo noise value in the [-1, 1] range.
+ * @param Frequency The oscillation frequency.
+ * @param Phase The random phase offset.
+ * @param ElapsedSeconds The elapsed demo time in seconds.
+ * @return The noise value.
+ */
+static GLfloat sampleNoiseComponent(GLfloat Frequency, GLfloat Phase,
+                                    GLfloat ElapsedSeconds) {
+    GLfloat FirstHarmonic;
+    GLfloat SecondHarmonic;
+    GLfloat ThirdHarmonic;
+
+    FirstHarmonic = sinf(Frequency * ElapsedSeconds + Phase);
+    SecondHarmonic = sinf(2.33f * Frequency * ElapsedSeconds + 1.70f * Phase);
+    ThirdHarmonic = sinf(4.11f * Frequency * ElapsedSeconds + 2.30f * Phase);
+
+    return 0.60f * FirstHarmonic + 0.28f * SecondHarmonic +
+           0.12f * ThirdHarmonic;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert a hue value to an opaque RGB color.
+ * @param Hue The hue value in the [0, 1) range.
+ * @param OutRed The red destination.
+ * @param OutGreen The green destination.
+ * @param OutBlue The blue destination.
+ */
+static void convertHueToRgb(GLfloat Hue, GLfloat *OutRed, GLfloat *OutGreen,
+                            GLfloat *OutBlue) {
+    GLfloat Saturation;
+    GLfloat Value;
+    GLfloat Sector;
+    GLfloat Fraction;
+    GLfloat MixA;
+    GLfloat MixB;
+    GLfloat MixC;
+    int SectorIndex;
+
+    Saturation = TINYGL_DEMO_MANY_CUBES_SATURATION;
+    Value = TINYGL_DEMO_MANY_CUBES_VALUE;
+
+    while (Hue < 0.0f) {
+        Hue += 1.0f;
+    }
+    while (Hue >= 1.0f) {
+        Hue -= 1.0f;
+    }
+
+    Sector = Hue * 6.0f;
+    SectorIndex = (int)Sector;
+    Fraction = Sector - (GLfloat)SectorIndex;
+    MixA = Value * (1.0f - Saturation);
+    MixB = Value * (1.0f - Saturation * Fraction);
+    MixC = Value * (1.0f - Saturation * (1.0f - Fraction));
+
+    switch (SectorIndex) {
+    case 0: {
+        *OutRed = Value;
+        *OutGreen = MixC;
+        *OutBlue = MixA;
+    } break;
+
+    case 1: {
+        *OutRed = MixB;
+        *OutGreen = Value;
+        *OutBlue = MixA;
+    } break;
+
+    case 2: {
+        *OutRed = MixA;
+        *OutGreen = Value;
+        *OutBlue = MixC;
+    } break;
+
+    case 3: {
+        *OutRed = MixA;
+        *OutGreen = MixB;
+        *OutBlue = Value;
+    } break;
+
+    case 4: {
+        *OutRed = MixC;
+        *OutGreen = MixA;
+        *OutBlue = Value;
+    } break;
+
+    default: {
+        *OutRed = Value;
+        *OutGreen = MixA;
+        *OutBlue = MixB;
+    } break;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize the 200 cubes with random transforms and colors.
+ * @param App The demo application state.
+ */
+static void initializeManyCubes(TINYGL_DEMO_APP *App) {
+    int Index;
+
+    srand(TINYGL_DEMO_MANY_CUBES_SEED);
+    App->ElapsedSeconds = 0.0f;
+
+    for (Index = 0; Index < TINYGL_DEMO_MANY_CUBES_COUNT; Index++) {
+        TINYGL_DEMO_CUBE *Cube;
+        GLfloat Hue;
+        GLfloat SpeedSign;
+
+        Cube = &App->Cubes[Index];
+        Cube->BasePositionX = randomFloatInRange(
+            TINYGL_DEMO_MANY_CUBES_MIN_POSITION_X,
+            TINYGL_DEMO_MANY_CUBES_MAX_POSITION_X);
+        Cube->BasePositionY = randomFloatInRange(
+            TINYGL_DEMO_MANY_CUBES_MIN_POSITION_Y,
+            TINYGL_DEMO_MANY_CUBES_MAX_POSITION_Y);
+        Cube->BasePositionZ = randomFloatInRange(
+            TINYGL_DEMO_MANY_CUBES_MIN_POSITION_Z,
+            TINYGL_DEMO_MANY_CUBES_MAX_POSITION_Z);
+        Cube->NoisePhaseX = randomFloatInRange(
+            0.0f, TINYGL_DEMO_MANY_NOISE_FULL_PHASE);
+        Cube->NoisePhaseY = randomFloatInRange(
+            0.0f, TINYGL_DEMO_MANY_NOISE_FULL_PHASE);
+        Cube->NoisePhaseZ = randomFloatInRange(
+            0.0f, TINYGL_DEMO_MANY_NOISE_FULL_PHASE);
+        Cube->NoiseFrequencyX = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_FREQUENCY,
+            TINYGL_DEMO_MANY_NOISE_MAX_FREQUENCY);
+        Cube->NoiseFrequencyY = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_FREQUENCY,
+            TINYGL_DEMO_MANY_NOISE_MAX_FREQUENCY);
+        Cube->NoiseFrequencyZ = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_FREQUENCY,
+            TINYGL_DEMO_MANY_NOISE_MAX_FREQUENCY);
+        Cube->NoiseAmplitudeX = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_AMPLITUDE,
+            TINYGL_DEMO_MANY_NOISE_MAX_AMPLITUDE);
+        Cube->NoiseAmplitudeY = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_AMPLITUDE,
+            TINYGL_DEMO_MANY_NOISE_MAX_AMPLITUDE);
+        Cube->NoiseAmplitudeZ = randomFloatInRange(
+            TINYGL_DEMO_MANY_NOISE_MIN_AMPLITUDE,
+            TINYGL_DEMO_MANY_NOISE_MAX_AMPLITUDE);
+        Cube->RotationX =
+            randomFloatInRange(0.0f, TINYGL_DEMO_MANY_CUBES_FULL_ANGLE);
+        Cube->RotationY =
+            randomFloatInRange(0.0f, TINYGL_DEMO_MANY_CUBES_FULL_ANGLE);
+        Cube->Scale = randomFloatInRange(TINYGL_DEMO_MANY_CUBES_MIN_SCALE,
+                                         TINYGL_DEMO_MANY_CUBES_MAX_SCALE);
+
+        SpeedSign = (randomFloatInRange(0.0f, 1.0f) < 0.5f) ? -1.0f : 1.0f;
+        Cube->SpeedX = SpeedSign *
+                       randomFloatInRange(TINYGL_DEMO_MANY_CUBES_MIN_SPEED,
+                                          TINYGL_DEMO_MANY_CUBES_MAX_SPEED);
+        SpeedSign = (randomFloatInRange(0.0f, 1.0f) < 0.5f) ? -1.0f : 1.0f;
+        Cube->SpeedY = SpeedSign *
+                       randomFloatInRange(TINYGL_DEMO_MANY_CUBES_MIN_SPEED,
+                                          TINYGL_DEMO_MANY_CUBES_MAX_SPEED);
+
+        Hue = (GLfloat)Index * TINYGL_DEMO_MANY_CUBES_GOLDEN_RATIO;
+        Hue += randomFloatInRange(0.0f, 0.08f);
+        convertHueToRgb(Hue, &Cube->Red, &Cube->Green, &Cube->Blue);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Advance cube rotations and the shared oscillation clock.
+ * @param App The demo application state.
+ * @param DeltaSeconds The frame delta time in seconds.
+ */
+static void updateManyCubes(TINYGL_DEMO_APP *App, GLfloat DeltaSeconds) {
+    int Index;
+
+    App->ElapsedSeconds += DeltaSeconds;
+
+    for (Index = 0; Index < TINYGL_DEMO_MANY_CUBES_COUNT; Index++) {
+        TINYGL_DEMO_CUBE *Cube;
+
+        Cube = &App->Cubes[Index];
+        Cube->RotationX += Cube->SpeedX * DeltaSeconds;
+        Cube->RotationY += Cube->SpeedY * DeltaSeconds;
+
+        while (Cube->RotationX >= TINYGL_DEMO_MANY_CUBES_FULL_ANGLE) {
+            Cube->RotationX -= TINYGL_DEMO_MANY_CUBES_FULL_ANGLE;
+        }
+        while (Cube->RotationX < 0.0f) {
+            Cube->RotationX += TINYGL_DEMO_MANY_CUBES_FULL_ANGLE;
+        }
+        while (Cube->RotationY >= TINYGL_DEMO_MANY_CUBES_FULL_ANGLE) {
+            Cube->RotationY -= TINYGL_DEMO_MANY_CUBES_FULL_ANGLE;
+        }
+        while (Cube->RotationY < 0.0f) {
+            Cube->RotationY += TINYGL_DEMO_MANY_CUBES_FULL_ANGLE;
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Configure the per-frame render state.
  * @param App The demo application state.
  */
@@ -140,9 +391,38 @@ static void configureFrameState(const TINYGL_DEMO_APP *App) {
  * @param App The demo application state.
  */
 static void configureLightingState(const TINYGL_DEMO_APP *App) {
+    if (App->ViewMode == TINYGL_DEMO_VIEW_MODE_MANY_CUBES) {
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+        glEnable(GL_LIGHT1);
+
+        glLightfv(GL_LIGHT0, GL_POSITION, TINYGL_DEMO_LIGHT_POSITION);
+        glLightfv(GL_LIGHT0, GL_AMBIENT, TINYGL_DEMO_MANY_KEY_AMBIENT);
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, TINYGL_DEMO_MANY_KEY_DIFFUSE);
+        glLightfv(GL_LIGHT0, GL_SPECULAR, TINYGL_DEMO_LIGHT_SPECULAR);
+
+        glLightfv(GL_LIGHT1, GL_POSITION, TINYGL_DEMO_MANY_FILL_POSITION);
+        glLightfv(GL_LIGHT1, GL_AMBIENT, TINYGL_DEMO_MANY_FILL_AMBIENT);
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, TINYGL_DEMO_MANY_FILL_DIFFUSE);
+        glLightfv(GL_LIGHT1, GL_SPECULAR, TINYGL_DEMO_MANY_FILL_SPECULAR);
+
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,
+                     TINYGL_DEMO_MATERIAL_AMBIENT);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,
+                     TINYGL_DEMO_MATERIAL_DIFFUSE);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR,
+                     TINYGL_DEMO_MATERIAL_SPECULAR);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,
+                     TINYGL_DEMO_MATERIAL_EMISSION);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,
+                     TINYGL_DEMO_MATERIAL_SHININESS);
+        return;
+    }
+
     if (App->ViewMode == TINYGL_DEMO_VIEW_MODE_LIT_CUBE) {
         glEnable(GL_LIGHTING);
         glEnable(GL_LIGHT0);
+        glDisable(GL_LIGHT1);
 
         glLightfv(GL_LIGHT0, GL_POSITION, TINYGL_DEMO_LIGHT_POSITION);
         glLightfv(GL_LIGHT0, GL_AMBIENT, TINYGL_DEMO_LIGHT_AMBIENT);
@@ -162,6 +442,7 @@ static void configureLightingState(const TINYGL_DEMO_APP *App) {
         return;
     }
 
+    glDisable(GL_LIGHT1);
     glDisable(GL_LIGHT0);
     glDisable(GL_LIGHTING);
 }
@@ -175,6 +456,37 @@ static void configureLightingState(const TINYGL_DEMO_APP *App) {
 static void applyCubeTransform(const TINYGL_DEMO_APP *App) {
     glRotatef(App->RotationX, 1.0f, 0.0f, 0.0f);
     glRotatef(App->RotationY, 0.0f, 1.0f, 0.0f);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Apply a per-cube lighted material color.
+ * @param Red The red component.
+ * @param Green The green component.
+ * @param Blue The blue component.
+ */
+static void applyCubeMaterial(GLfloat Red, GLfloat Green, GLfloat Blue) {
+    GLfloat AmbientColor[4];
+    GLfloat DiffuseColor[4];
+    GLfloat EmissionColor[4];
+
+    AmbientColor[0] = Red * TINYGL_DEMO_MANY_MATERIAL_AMBIENT_SCALE;
+    AmbientColor[1] = Green * TINYGL_DEMO_MANY_MATERIAL_AMBIENT_SCALE;
+    AmbientColor[2] = Blue * TINYGL_DEMO_MANY_MATERIAL_AMBIENT_SCALE;
+    AmbientColor[3] = 1.0f;
+    DiffuseColor[0] = Red;
+    DiffuseColor[1] = Green;
+    DiffuseColor[2] = Blue;
+    DiffuseColor[3] = 1.0f;
+    EmissionColor[0] = Red * TINYGL_DEMO_MANY_MATERIAL_EMISSION_SCALE;
+    EmissionColor[1] = Green * TINYGL_DEMO_MANY_MATERIAL_EMISSION_SCALE;
+    EmissionColor[2] = Blue * TINYGL_DEMO_MANY_MATERIAL_EMISSION_SCALE;
+    EmissionColor[3] = 1.0f;
+
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, AmbientColor);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, DiffuseColor);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, EmissionColor);
 }
 
 /************************************************************************/
@@ -241,7 +553,7 @@ static void drawLitTriangle(GLfloat NormalX, GLfloat NormalY, GLfloat NormalZ,
 static void drawCube(TINYGL_DEMO_VIEW_MODE ViewMode) {
     glBegin(GL_TRIANGLES);
 
-    if (ViewMode == TINYGL_DEMO_VIEW_MODE_LIT_CUBE) {
+    if (ViewMode != TINYGL_DEMO_VIEW_MODE_UNLIT_CUBE) {
         drawLitTriangle(0.0f, 0.0f, 1.0f, 0.90f, 0.20f, 0.18f, -1.0f, -1.0f,
                         1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
         drawLitTriangle(0.0f, 0.0f, 1.0f, 0.90f, 0.20f, 0.18f, -1.0f, -1.0f,
@@ -332,6 +644,48 @@ static void drawDepthValidationScene(const TINYGL_DEMO_APP *App) {
 /************************************************************************/
 
 /**
+ * @brief Draw 200 cubes oscillating around their spawn points.
+ * @param App The demo application state.
+ */
+static void drawManyCubesScene(const TINYGL_DEMO_APP *App) {
+    int Index;
+
+    for (Index = 0; Index < TINYGL_DEMO_MANY_CUBES_COUNT; Index++) {
+        const TINYGL_DEMO_CUBE *Cube;
+        GLfloat CurrentX;
+        GLfloat CurrentY;
+        GLfloat CurrentZ;
+
+        Cube = &App->Cubes[Index];
+        CurrentX =
+            Cube->BasePositionX +
+            Cube->NoiseAmplitudeX *
+                sampleNoiseComponent(Cube->NoiseFrequencyX, Cube->NoisePhaseX,
+                                     App->ElapsedSeconds);
+        CurrentY =
+            Cube->BasePositionY +
+            Cube->NoiseAmplitudeY *
+                sampleNoiseComponent(Cube->NoiseFrequencyY, Cube->NoisePhaseY,
+                                     App->ElapsedSeconds);
+        CurrentZ =
+            Cube->BasePositionZ +
+            Cube->NoiseAmplitudeZ *
+                sampleNoiseComponent(Cube->NoiseFrequencyZ, Cube->NoisePhaseZ,
+                                     App->ElapsedSeconds);
+        glPushMatrix();
+        glTranslatef(CurrentX, CurrentY, CurrentZ);
+        glRotatef(Cube->RotationX, 1.0f, 0.0f, 0.0f);
+        glRotatef(Cube->RotationY, 0.0f, 1.0f, 0.0f);
+        glScalef(Cube->Scale, Cube->Scale, Cube->Scale);
+        applyCubeMaterial(Cube->Red, Cube->Green, Cube->Blue);
+        drawCube(App->ViewMode);
+        glPopMatrix();
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Initialize the common TinyGL demo state.
  * @param App The demo application state.
  * @param Width The initial width.
@@ -370,6 +724,9 @@ int tinyglDemoInitialize(TINYGL_DEMO_APP *App, GLsizei Width, GLsizei Height) {
         return 0;
     }
 
+    App->ViewMode = TINYGL_DEMO_VIEW_MODE_UNLIT_CUBE;
+    initializeManyCubes(App);
+
     return 1;
 }
 
@@ -397,6 +754,10 @@ void tinyglDemoShutdown(TINYGL_DEMO_APP *App) {
     App->Height = 0;
     App->RotationX = 0.0f;
     App->RotationY = 0.0f;
+    App->ElapsedSeconds = 0.0f;
+    App->FpsAccumulator = 0.0f;
+    App->FpsFrameCount = 0;
+    App->CurrentFps = 0;
     App->ViewMode = TINYGL_DEMO_VIEW_MODE_UNLIT_CUBE;
 }
 
@@ -432,15 +793,24 @@ int tinyglDemoRenderFrame(TINYGL_DEMO_APP *App, GLfloat DeltaSeconds) {
 
     App->RotationX += DeltaSeconds * TINYGL_DEMO_ROTATION_X_SPEED;
     App->RotationY += DeltaSeconds * TINYGL_DEMO_ROTATION_Y_SPEED;
+    updateManyCubes(App, DeltaSeconds);
+    tinyglDemoUpdateFpsCounter(App, DeltaSeconds);
 
     configureFrameState(App);
     configureLightingState(App);
-    drawDepthValidationScene(App);
+
+    if (App->ViewMode == TINYGL_DEMO_VIEW_MODE_MANY_CUBES) {
+        drawManyCubesScene(App);
+    } else {
+        drawDepthValidationScene(App);
+    }
     glFlush();
 
     if (glGetError() != GL_NO_ERROR) {
         return printDemoError("rendering failed");
     }
+
+    tinyglDemoDrawFpsOverlay(App);
 
     return 1;
 }
@@ -460,7 +830,8 @@ void tinyglDemoSetViewMode(TINYGL_DEMO_APP *App,
 
     switch (ViewMode) {
     case TINYGL_DEMO_VIEW_MODE_UNLIT_CUBE:
-    case TINYGL_DEMO_VIEW_MODE_LIT_CUBE: {
+    case TINYGL_DEMO_VIEW_MODE_LIT_CUBE:
+    case TINYGL_DEMO_VIEW_MODE_MANY_CUBES: {
         App->ViewMode = ViewMode;
     } break;
 

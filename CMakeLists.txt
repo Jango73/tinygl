@@ -31,6 +31,7 @@ set(TINYGL_TEST_SOURCES
 
 set(TINYGL_DEMO_COMMON_SOURCES
     demo/common/tinygl_demo.c
+    demo/common/tinygl_demo_overlay.c
 )
 
 add_library(tinygl_shared SHARED
@@ -119,6 +120,7 @@ if(TINYGL_BUILD_SDL2_DEMO)
         add_executable(tinygl_demo_sdl2
             ${TINYGL_DEMO_COMMON_SOURCES}
             demo/common/tinygl_demo.h
+            demo/common/tinygl_demo_overlay.h
             demo/platform/sdl2/tinygl_demo_sdl2.c
         )
 

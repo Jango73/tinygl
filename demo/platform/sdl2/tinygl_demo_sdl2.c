@@ -82,6 +82,7 @@ static void printUsage(const char *ProgramName) {
             "keyboard controls:\n"
             "  1           Show the default unlit rotating cube\n"
             "  2           Show the rotating cube with vertex lighting\n"
+            "  3           Show many rotating cubes with lighting\n"
             "  Space       Pause or resume the animation\n"
             "  N           Render one frame while paused\n",
             ProgramName);
@@ -97,6 +98,7 @@ static void printViewModeMenu(void) {
             "tinygl_demo_sdl2 controls:\n"
             "  1 - Default rotating cube\n"
             "  2 - Rotating cube with lighting\n"
+            "  3 - Many rotating cubes\n"
             "  Space - Pause or resume the animation\n"
             "  N - Render one frame while paused\n");
 }
@@ -120,6 +122,10 @@ static void selectViewMode(TINYGL_DEMO_SDL2_APP *App, SDL_Keycode KeySymbol) {
 
     case SDLK_2: {
         ViewMode = TINYGL_DEMO_VIEW_MODE_LIT_CUBE;
+    } break;
+
+    case SDLK_3: {
+        ViewMode = TINYGL_DEMO_VIEW_MODE_MANY_CUBES;
     } break;
 
     case SDLK_SPACE: {
